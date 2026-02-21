@@ -11,7 +11,7 @@ const EXPLICIT_GENRES = [12, 49]; // 12=Hentai, 49=Erotica
 
 export default function DiscoveryScreen({ navigation }) {
     const { theme } = useTheme();
-    const { mode } = useMediaMode();
+    const { mode, modeVersion } = useMediaMode();
 
     const [genres, setGenres] = useState([]);
     const [producers, setProducers] = useState([]);
@@ -19,7 +19,7 @@ export default function DiscoveryScreen({ navigation }) {
 
     useEffect(() => {
         loadDiscoveryData();
-    }, [mode]);
+    }, [modeVersion]); // Safely track integer signal instead of string string directly
 
     const loadDiscoveryData = async () => {
         setLoading(true);

@@ -6,6 +6,7 @@ const MediaModeContext = createContext();
 
 export const MediaModeProvider = ({ children }) => {
     const [mode, setMode] = useState('anime'); // 'anime' or 'manga'
+    const [modeVersion, setModeVersion] = useState(0);
     const [isLoaded, setIsLoaded] = useState(false);
     const flipAnim = useRef(new Animated.Value(0)).current; // 0 = 0deg, 1 = 90deg, -1 = -90deg
 
@@ -38,6 +39,7 @@ export const MediaModeProvider = ({ children }) => {
         }).start(async () => {
             // 2. Change Mode (Content Update)
             setMode(newMode);
+            setModeVersion(prev => prev + 1);
             try {
                 await AsyncStorage.setItem('mediaMode', newMode);
             } catch (error) { /* ignore */ }
@@ -58,7 +60,7 @@ export const MediaModeProvider = ({ children }) => {
     if (!isLoaded) return null; // Prevent UI from rendering with wrong default mode
 
     return (
-        <MediaModeContext.Provider value={{ mode, toggleMode, flipAnim }}>
+        <MediaModeContext.Provider value={{ mode, toggleMode, flipAnim, modeVersion }}>
             {children}
         </MediaModeContext.Provider>
     );

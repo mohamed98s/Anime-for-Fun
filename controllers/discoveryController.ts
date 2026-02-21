@@ -5,7 +5,7 @@ import { mediaService } from '../services/mediaService';
 import { recommendationService } from '../services/recommendationService';
 
 export const useDiscoveryController = () => {
-    const { mode } = useMediaMode();
+    const { mode, modeVersion } = useMediaMode();
     const { library } = useLibrary();
 
     const [genres, setGenres] = useState([]);
@@ -19,7 +19,7 @@ export const useDiscoveryController = () => {
 
     useEffect(() => {
         loadData();
-    }, [mode]);
+    }, [modeVersion]); // Hook directly to the safe integer signal
 
     const loadData = async () => {
         setLoading(true);

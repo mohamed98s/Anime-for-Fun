@@ -15,7 +15,7 @@ export default function SwipeScreen({ route, navigation }) {
     const { title, options } = route.params;
     const genreName = title;
     const { theme } = useTheme();
-    const { mode } = useMediaMode();
+    const { mode, modeVersion } = useMediaMode();
     const { addToLibrary, library } = useLibrary();
 
     const { width, height } = useWindowDimensions();
@@ -32,6 +32,17 @@ export default function SwipeScreen({ route, navigation }) {
     useEffect(() => {
         loadCards(1, 0);
     }, []);
+
+    // Global Reset Signal Listener
+    useEffect(() => {
+        if (modeVersion > 0) {
+            setCards([]);
+            setPage(1);
+            setFinished(false);
+            setCurrentIndex(0);
+            loadCards(1, 0);
+        }
+    }, [modeVersion]);
 
     useEffect(() => {
         if (cards.length > 0 && cards.length - currentIndex <= 5 && !finished) {
