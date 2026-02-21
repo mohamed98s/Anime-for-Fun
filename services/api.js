@@ -41,7 +41,7 @@ export const fetchMediaBatch = async (type = 'anime', page = 1, options = {}) =>
             let url = `${BASE_URL}/${type}`;
             const params = new URLSearchParams({
                 page: page.toString(),
-                limit: '25'
+                limit: options.limit ? options.limit.toString() : '25'
             });
 
             // Handle "Top" endpoints (e.g., Top Airing, Top Upcoming)
