@@ -1,9 +1,10 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UIManager, Platform, LayoutAnimation } from 'react-native';
 import { useMediaMode } from './MediaModeContext';
 
-const LibraryContext = createContext();
+export const LibraryStateContext = createContext(null);
+export const LibraryActionsContext = createContext(null);
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android') {
@@ -12,7 +13,11 @@ if (Platform.OS === 'android') {
     }
 }
 
-export const useLibrary = () => useContext(LibraryContext);
+export const useLibrary = () => {
+    const state = useContext(LibraryStateContext);
+    const actions = useContext(LibraryActionsContext);
+    return { ...state, ...actions };
+};
 
 export const LibraryProvider = ({ children }) => {
     const { mode } = useMediaMode();
@@ -175,17 +180,24 @@ export const LibraryProvider = ({ children }) => {
         return topGenre;
     };
 
+    const stateValue = useMemo(() => ({
+        library: libraries[mode], // Expose ONLY the active library
+        getAnimeStatus, // Should be getMediaStatus technically, but keeping compat
+        getTopGenre,
+        loading
+    }), [libraries, mode, loading]);
+
+    const actionsValue = useMemo(() => ({
+        addToLibrary,
+        updateProgress,
+        removeFromLibrary,
+    }), [mode]);
+
     return (
-        <LibraryContext.Provider value={{
-            library: libraries[mode], // Expose ONLY the active library
-            addToLibrary,
-            updateProgress,
-            removeFromLibrary,
-            getAnimeStatus, // Should be getMediaStatus technically, but keeping compat
-            getTopGenre,
-            loading
-        }}>
-            {children}
-        </LibraryContext.Provider>
+        <LibraryStateContext.Provider value={stateValue}>
+            <LibraryActionsContext.Provider value={actionsValue}>
+                {children}
+            </LibraryActionsContext.Provider>
+        </LibraryStateContext.Provider>
     );
 };

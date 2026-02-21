@@ -1,14 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useContext } from 'react';
 import { StyleSheet, View, Text, ScrollView, StatusBar, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLibrary } from '../context/LibraryContext';
+import { LibraryStateContext } from '../context/LibraryContext';
 import { useTheme } from '../context/ThemeContext';
 import { useMediaMode } from '../context/MediaModeContext';
 import StatCard from '../components/StatCard';
 import { PieChart, BarChart } from 'react-native-chart-kit';
 
 export default function DashboardScreen() {
-    const { library } = useLibrary();
+    const { library } = useContext(LibraryStateContext);
     const { theme } = useTheme();
     const { mode } = useMediaMode();
     const { width: screenWidth } = useWindowDimensions();

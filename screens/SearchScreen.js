@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { StyleSheet, View, TextInput, FlatList, ActivityIndicator, Text, Animated } from 'react-native';
 import { fetchMediaBatch, fetchRecommendations, fetchTopMedia } from '../services/api';
 import AnimeCard from '../components/AnimeCard';
 import { useTheme } from '../context/ThemeContext';
-import { useLibrary } from '../context/LibraryContext';
+import { LibraryStateContext } from '../context/LibraryContext';
 import { useMediaMode } from '../context/MediaModeContext';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -27,7 +27,7 @@ function useDebounce(value, delay) {
 export default function SearchScreen({ navigation }) {
     const { theme } = useTheme();
     const { mode } = useMediaMode(); // Consume mode
-    const { getTopGenre } = useLibrary();
+    const { getTopGenre } = useContext(LibraryStateContext);
 
     const [query, setQuery] = useState('');
     const debouncedQuery = useDebounce(query, 500);

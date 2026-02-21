@@ -142,11 +142,13 @@ function DiscoveryStackNavigator() {
                 name="DiscoveryMain"
                 component={DiscoveryScreen}
                 options={{ headerShown: false }}
+                key={`discovery-${mode}`}
             />
             <DiscoveryStack.Screen
                 name="Swipe"
                 component={SwipeScreen}
                 options={{ headerShown: false }}
+                key={`swipe-${mode}`}
             />
         </DiscoveryStack.Navigator>
     )

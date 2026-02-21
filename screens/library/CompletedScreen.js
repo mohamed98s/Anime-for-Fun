@@ -1,12 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useContext } from 'react';
 import { StyleSheet, View, FlatList, Text } from 'react-native';
 import LibraryCard from '../../components/LibraryCard';
-import { useLibrary } from '../../context/LibraryContext';
+import { LibraryStateContext } from '../../context/LibraryContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useMediaMode } from '../../context/MediaModeContext';
 
 export default function CompletedScreen({ navigation }) {
-    const { library } = useLibrary();
+    const { library } = useContext(LibraryStateContext);
     const { theme } = useTheme();
     const { mode } = useMediaMode();
 

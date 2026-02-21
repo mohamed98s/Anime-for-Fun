@@ -1,19 +1,20 @@
-import React from 'react';
-import { StyleSheet, StatusBar, Text, View } from 'react-native';
+import React, { useContext } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import { StatusBar } from 'expo-status-bar';
 import WatchingScreen from './library/WatchingScreen';
 import CompletedScreen from './library/CompletedScreen';
 import PlanScreen from './library/PlanScreen';
-import { useLibrary } from '../context/LibraryContext';
+import { LibraryStateContext } from '../context/LibraryContext';
 import { useTheme } from '../context/ThemeContext';
 import { useMediaMode } from '../context/MediaModeContext';
 
 const Tab = createMaterialTopTabNavigator();
 
 export default function LibraryScreen() {
-    const { library } = useLibrary();
     const { theme } = useTheme();
+    const { library } = useContext(LibraryStateContext);
     const { mode } = useMediaMode();
 
     const activeLabel = mode === 'anime' ? 'Watching' : 'Reading';

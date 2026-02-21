@@ -1,13 +1,13 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useContext } from 'react';
 import { StyleSheet, View, Text, Image, TouchableOpacity, Animated } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { useLibrary } from '../context/LibraryContext';
+import { LibraryActionsContext } from '../context/LibraryContext';
 import { useMediaMode } from '../context/MediaModeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function LibraryCard({ item, navigation }) {
     const { theme } = useTheme();
-    const { updateProgress } = useLibrary();
+    const { updateProgress } = useContext(LibraryActionsContext);
     const { mode } = useMediaMode();
 
     // Progress bar animation

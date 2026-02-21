@@ -1,12 +1,12 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { View, FlatList, Text, StyleSheet } from 'react-native';
-import { useLibrary } from '../../context/LibraryContext';
+import { LibraryStateContext } from '../../context/LibraryContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useMediaMode } from '../../context/MediaModeContext';
 import LibraryCard from '../../components/LibraryCard';
 
 export default function PlanScreen({ navigation }) {
-    const { library } = useLibrary();
+    const { library } = useContext(LibraryStateContext);
     const { theme } = useTheme();
     const { mode } = useMediaMode();
 
