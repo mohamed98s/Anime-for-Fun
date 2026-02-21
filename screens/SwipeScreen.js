@@ -40,7 +40,11 @@ export default function SwipeScreen({ route, navigation }) {
             setPage(1);
             setFinished(false);
             setCurrentIndex(0);
-            loadCards(1, 0);
+
+            // Push the fetch to the back of the event loop so React flushes the state updates first
+            setTimeout(() => {
+                loadCards(1, 0);
+            }, 0);
         }
     }, [modeVersion]);
 
