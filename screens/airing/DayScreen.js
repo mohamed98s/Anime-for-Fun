@@ -15,10 +15,18 @@ export default function DayScreen({ day, data, navigation }) {
 
     const filteredData = useMemo(() => {
         if (!data) return [];
-        if (day === 'Unknown') {
-            return data.filter(item => !item.broadcast?.day || item.broadcast?.day === 'Unknown');
-        }
-        return data.filter(item => item.broadcast?.day === day);
+        return data.filter(item => {
+            let bDay = item.broadcast?.day;
+            if (!bDay && item.broadcast?.string) {
+                // Fallback to parsing from string like "Mondays at 00:00 (JST)"
+                const parsed = item.broadcast.string.split(' ')[0];
+                if (parsed.endsWith('s')) bDay = parsed;
+            }
+            bDay = bDay || 'Unknown';
+
+            if (day === 'Unknown') return bDay === 'Unknown';
+            return bDay === day;
+        });
     }, [data, day]);
 
     if (filteredData.length === 0) {

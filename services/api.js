@@ -198,35 +198,33 @@ export const fetchRecommendations = async (type = 'anime', id) => {
 export const fetchSeasonalAnime = async () => {
     if (cache.seasonal) return cache.seasonal;
 
-    return enqueueRequest(async () => {
-        try {
-            let allData = [];
-            let page = 1;
-            let hasNextPage = true;
+    try {
+        let allData = [];
+        let page = 1;
+        let hasNextPage = true;
 
-            // Fetch all pages for the current season to achieve parity with MAL
-            while (hasNextPage) {
-                const response = await axios.get(`${BASE_URL}/seasons/now?page=${page}`);
-                const data = response.data.data || [];
-                allData = [...allData, ...data];
+        // Fetch all schedule pages to achieve parity with MAL (includes continuing previous seasons)
+        while (hasNextPage) {
+            const responseData = await enqueueRequest(async () => {
+                const res = await axios.get(`${BASE_URL}/schedules?page=${page}`);
+                return res.data;
+            }, 600); // 600ms delay safely stays under the 3 req/sec Jikan rate limit globally
 
-                hasNextPage = response.data.pagination?.has_next_page || false;
-                page++;
+            const data = responseData.data || [];
+            allData = [...allData, ...data];
 
-                // Small delay to prevent rate-limiting when fetching multiple pages quickly
-                if (hasNextPage) await delay(500);
-            }
-
-            // Log how many anime have broadcast.day === null or unassigned
-            const nullBroadcasts = allData.filter(item => !item.broadcast?.day);
-            console.log(`[AiringSync] Total Seasonal Anime Fetched: ${allData.length}`);
-            console.log(`[AiringSync] Anime with broadcast.day === null or unassigned: ${nullBroadcasts.length}`);
-
-            if (allData.length > 0) cache.seasonal = allData;
-            return allData;
-        } catch (error) {
-            console.error('Seasonal Error:', error);
-            return [];
+            hasNextPage = responseData.pagination?.has_next_page || false;
+            page++;
         }
-    });
+
+        const nullBroadcasts = allData.filter(item => !item.broadcast?.day);
+        console.log(`[AiringSync] Total Schedule Anime Fetched: ${allData.length}`);
+        console.log(`[AiringSync] Anime with broadcast.day === null or unassigned: ${nullBroadcasts.length}`);
+
+        if (allData.length > 0) cache.seasonal = allData;
+        return allData;
+    } catch (error) {
+        console.error('Seasonal Error:', error);
+        return [];
+    }
 }
