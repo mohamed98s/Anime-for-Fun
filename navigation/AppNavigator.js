@@ -157,6 +157,11 @@ function DiscoveryStackNavigator() {
                 options={{ headerShown: false }}
                 key={`swipe-${mode}`}
             />
+            <DiscoveryStack.Screen
+                name="Details"
+                component={DetailsScreen}
+                options={({ route }) => ({ title: route.params.item.title_english || 'Details' })}
+            />
         </DiscoveryStack.Navigator>
     )
 }
