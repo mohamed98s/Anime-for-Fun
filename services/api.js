@@ -1,0 +1,232 @@
+import axios from 'axios';
+
+const BASE_URL = 'https://api.jikan.moe/v4';
+
+// --- Queue system and Request Locks to prevent 429s ---
+let requestQueue = Promise.resolve();
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const enqueueRequest = (task, delayMs = 500) => {
+    // Chain the new task to the end of the existing queue
+    const nextRequest = requestQueue.then(async () => {
+        await delay(delayMs);
+        return task();
+    });
+
+    // Update queue, catching errors so the queue doesn't stick
+    requestQueue = nextRequest.catch(() => { });
+
+    return nextRequest;
+};
+
+export const fetchMediaPage = async (type = 'anime', page = 1) => {
+    return enqueueRequest(async () => {
+        try {
+            const response = await axios.get(`${BASE_URL}/${type}?page=${page}&limit=20&order_by=popularity`);
+            return response.data.data;
+        } catch (error) {
+            console.error('API Fetch Error:', error);
+            return [];
+        }
+    });
+};
+
+/**
+ * Fetch media based on various parameters.
+ */
+export const fetchMediaBatch = async (type = 'anime', page = 1, options = {}) => {
+    return enqueueRequest(async () => {
+        try {
+            let url = `${BASE_URL}/${type}`;
+            const params = new URLSearchParams({
+                page: page.toString(),
+                limit: '25'
+            });
+
+            // Handle "Top" endpoints (e.g., Top Airing, Top Upcoming)
+            if (options.endpoint === 'top') {
+                url = `${BASE_URL}/top/${type}`;
+                if (options.filter) params.append('filter', options.filter);
+                if (options.subtype) params.append('type', options.subtype); // e.g. 'movie', 'tv', 'manga', 'novel'
+            }
+            // Handle "Season" endpoints
+            else if (options.endpoint === 'season') {
+                if (options.year && options.season) {
+                    url = `${BASE_URL}/seasons/${options.year}/${options.season}`;
+                } else {
+                    url = `${BASE_URL}/seasons/now`;
+                }
+            }
+            // Handle Standard Search/Filter
+            else {
+                if (options.q) params.append('q', options.q);
+                if (options.genres) params.append('genres', options.genres);
+                if (options.producers) params.append('producers', options.producers);
+                if (options.magazines) params.append('magazines', options.magazines);
+                if (options.explicit_genres) params.append('genres', options.explicit_genres);
+
+                // Default sort if not "Top"
+                if (!options.q) {
+                    params.append('order_by', 'popularity');
+                }
+            }
+
+            const fullUrl = `${url}?${params.toString()}`;
+
+            const response = await axios.get(fullUrl);
+
+            return {
+                data: response.data.data || [],
+                hasNextPage: response.data.pagination?.has_next_page || false,
+                nextStartPage: page + 1
+            };
+        } catch (error) {
+            console.error('API Batch Fetch Error:', error.message);
+            return { data: [], hasNextPage: false, nextStartPage: page };
+        }
+    }, 500); // Slightly longer delay base for batch
+};
+
+// Response Caching and Active Request Locks
+const cache = {
+    genres: { anime: null, manga: null },
+    producers: { anime: null, manga: null },
+    topMedia: { anime: null, manga: null },
+    seasonal: null,
+    recommendations: { anime: {}, manga: {} }
+};
+
+// Store active promises so concurrent identical requests await the same promise
+const activeRequests = {};
+
+/**
+ * Helper to manage caching and locking for simple endpoints
+ */
+const fetchWithLock = async (cacheKey, lockKey, url, delayMs = 500) => {
+    // 1. Check strict cache
+    if (cacheKey && cacheKey !== null) return cacheKey;
+
+    // 2. Check if identical request is already in flight right now
+    if (activeRequests[lockKey]) return activeRequests[lockKey];
+
+    // 3. Create new request, lock it, enqueue it
+    const reqPromise = enqueueRequest(async () => {
+        try {
+            const response = await axios.get(url);
+            const data = response.data.data || [];
+            return data;
+        } catch (error) {
+            console.error(`Error fetching ${lockKey}:`, error.message);
+            return [];
+        } finally {
+            // Clean up lock when done
+            delete activeRequests[lockKey];
+        }
+    }, delayMs);
+
+    activeRequests[lockKey] = reqPromise;
+    const finalData = await reqPromise;
+
+    return finalData;
+}
+
+
+export const fetchGenres = async (type = 'anime') => {
+    const lockKey = `genres_${type}`;
+    const data = await fetchWithLock(cache.genres[type], lockKey, `${BASE_URL}/genres/${type}`);
+    if (data.length > 0) cache.genres[type] = data;
+    return data;
+};
+
+export const fetchProducers = async (type = 'anime') => {
+    const lockKey = `producers_${type}`;
+    const endpoint = type === 'anime' ? 'producers' : 'magazines';
+    const orderBy = type === 'anime' ? 'favorites' : 'count';
+    const url = `${BASE_URL}/${endpoint}?order_by=${orderBy}&sort=desc&limit=20`;
+
+    const data = await fetchWithLock(cache.producers[type], lockKey, url);
+    if (data.length > 0) cache.producers[type] = data;
+    return data;
+}
+
+export const searchMedia = async (type = 'anime', query) => {
+    return enqueueRequest(async () => {
+        try {
+            const response = await axios.get(`${BASE_URL}/${type}?q=${query}&limit=20`);
+            return response.data.data;
+        } catch (error) {
+            console.error('Search Error:', error);
+            return [];
+        }
+    });
+};
+
+export const fetchTopMedia = async (type = 'anime', limit = 5) => {
+    if (limit === 5 && cache.topMedia[type]) return cache.topMedia[type];
+
+    return enqueueRequest(async () => {
+        try {
+            const response = await axios.get(`${BASE_URL}/top/${type}?filter=bypopularity&limit=${limit}`);
+            const data = response.data.data || [];
+            if (limit === 5 && data.length > 0) cache.topMedia[type] = data;
+            return data;
+        } catch (error) {
+            console.error('Fetch Top Error:', error);
+            return [];
+        }
+    });
+}
+
+export const fetchRecommendations = async (type = 'anime', id) => {
+    if (!id) return [];
+    if (cache.recommendations[type][id]) return cache.recommendations[type][id];
+
+    return enqueueRequest(async () => {
+        try {
+            const response = await axios.get(`${BASE_URL}/${type}/${id}/recommendations`);
+            const data = response.data.data.map(item => item.entry).slice(0, 10);
+            if (data.length > 0) cache.recommendations[type][id] = data;
+            return data;
+        } catch (error) {
+            console.error('Recs Error:', error);
+            return [];
+        }
+    }, 500);
+}
+
+export const fetchSeasonalAnime = async () => {
+    if (cache.seasonal) return cache.seasonal;
+
+    return enqueueRequest(async () => {
+        try {
+            let allData = [];
+            let page = 1;
+            let hasNextPage = true;
+
+            // Fetch all pages for the current season to achieve parity with MAL
+            while (hasNextPage) {
+                const response = await axios.get(`${BASE_URL}/seasons/now?page=${page}`);
+                const data = response.data.data || [];
+                allData = [...allData, ...data];
+
+                hasNextPage = response.data.pagination?.has_next_page || false;
+                page++;
+
+                // Small delay to prevent rate-limiting when fetching multiple pages quickly
+                if (hasNextPage) await delay(500);
+            }
+
+            // Log how many anime have broadcast.day === null or unassigned
+            const nullBroadcasts = allData.filter(item => !item.broadcast?.day);
+            console.log(`[AiringSync] Total Seasonal Anime Fetched: ${allData.length}`);
+            console.log(`[AiringSync] Anime with broadcast.day === null or unassigned: ${nullBroadcasts.length}`);
+
+            if (allData.length > 0) cache.seasonal = allData;
+            return allData;
+        } catch (error) {
+            console.error('Seasonal Error:', error);
+            return [];
+        }
+    });
+}
