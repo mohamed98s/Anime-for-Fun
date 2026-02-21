@@ -9,7 +9,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useMediaMode } from '../context/MediaModeContext';
 import { useLibrary } from '../context/LibraryContext';
 import { Ionicons } from '@expo/vector-icons';
-import { fetchMediaBatch } from '../services/api';
+import { mediaService } from '../services/mediaService';
 
 export default function SwipeScreen({ route, navigation }) {
     const { title, options } = route.params;
@@ -44,7 +44,7 @@ export default function SwipeScreen({ route, navigation }) {
         try {
             isFetchingRef.current = true;
             if (cards.length === 0) setLoading(true);
-            const response = await fetchMediaBatch(mode, fetchPage, options);
+            const response = await mediaService.getMediaBatch(mode, fetchPage, options);
             const data = response.data;
 
             if (data && data.length > 0) {

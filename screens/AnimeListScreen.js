@@ -14,11 +14,13 @@ import AnimeCard from '../components/AnimeCard';
 import { fetchMediaBatch } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useMediaMode } from '../context/MediaModeContext';
+import { useLibrary } from '../context/LibraryContext';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function AnimeListScreen({ navigation }) {
     const { theme } = useTheme();
     const { mode, toggleMode } = useMediaMode();
+    const { getAnimeStatus, addToLibrary } = useLibrary();
 
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -124,7 +126,9 @@ export default function AnimeListScreen({ navigation }) {
                     renderItem={({ item }) => (
                         <AnimeCard
                             item={item}
-                            // Pass mode to DetailsScreen if needed, or item naturally contains type
+                            mode={mode}
+                            currentStatus={getAnimeStatus(item.mal_id)}
+                            onUpdateLibrary={addToLibrary}
                             onPress={() => navigation.navigate('Details', { item })}
                         />
                     )}

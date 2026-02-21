@@ -2,9 +2,11 @@ import React, { useMemo } from 'react';
 import { StyleSheet, View, FlatList, Text } from 'react-native';
 import AnimeCard from '../../components/AnimeCard';
 import { useTheme } from '../../context/ThemeContext';
+import { useLibrary } from '../../context/LibraryContext';
 
 export default function DayScreen({ day, data, navigation }) {
     const { theme } = useTheme();
+    const { getAnimeStatus, addToLibrary } = useLibrary();
 
     // Jikan returns days like "Mondays", "Tuesdays". 
     // We match blindly or check for "Mondays" vs "Monday" depending on tab name.
@@ -37,6 +39,9 @@ export default function DayScreen({ day, data, navigation }) {
                 renderItem={({ item }) => (
                     <AnimeCard
                         item={item}
+                        mode="anime"
+                        currentStatus={getAnimeStatus(item.mal_id)}
+                        onUpdateLibrary={addToLibrary}
                         onPress={() => navigation.navigate('Details', { item })}
                     />
                 )}

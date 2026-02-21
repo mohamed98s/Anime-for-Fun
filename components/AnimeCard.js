@@ -12,20 +12,15 @@ import {
     Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useLibrary } from '../context/LibraryContext';
 import { useTheme } from '../context/ThemeContext';
-import { useMediaMode } from '../context/MediaModeContext';
 
-const AnimeCard = ({ item, onPress }) => {
-    const { addToLibrary, getAnimeStatus } = useLibrary();
+const AnimeCard = ({ item, onPress, mode = 'anime', currentStatus, onUpdateLibrary }) => {
     const { theme } = useTheme();
-    const { mode } = useMediaMode();
 
     const [modalVisible, setModalVisible] = useState(false);
     const [progressInput, setProgressInput] = useState('');
     const [showProgressInput, setShowProgressInput] = useState(false);
 
-    const currentStatus = getAnimeStatus(item.mal_id);
     const totalItems = mode === 'anime' ? item.episodes : item.chapters;
     const isNotAired = item.status === 'Not yet aired'; // Applies mostly to anime
     const isAiring = item.status === 'Currently Airing' || item.status === 'Publishing';
@@ -50,7 +45,7 @@ const AnimeCard = ({ item, onPress }) => {
             setShowProgressInput(true);
             setProgressInput('1');
         } else {
-            addToLibrary(item, status);
+            if (onUpdateLibrary) onUpdateLibrary(item, status);
             setModalVisible(false);
         }
     };
@@ -77,7 +72,7 @@ const AnimeCard = ({ item, onPress }) => {
 
     const handleActiveSubmit = () => {
         const prog = validateProgress(progressInput);
-        addToLibrary(item, activeLabel, prog);
+        if (onUpdateLibrary) onUpdateLibrary(item, activeLabel, prog);
         setModalVisible(false);
     };
 

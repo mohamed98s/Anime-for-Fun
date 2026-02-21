@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, ScrollView, TouchableOpacity, StatusBar, Activi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useMediaMode } from '../context/MediaModeContext';
-import { fetchGenres, fetchProducers } from '../services/api';
+import { mediaService } from '../services/mediaService';
 import { Ionicons } from '@expo/vector-icons';
 
 // Explicit Genres IDs (MyAnimeList/Jikan)
@@ -25,8 +25,8 @@ export default function DiscoveryScreen({ navigation }) {
         setLoading(true);
         try {
             const [allGenres, allProducers] = await Promise.all([
-                fetchGenres(mode),
-                fetchProducers(mode)
+                mediaService.getGenres(mode),
+                mediaService.getProducers(mode)
             ]);
 
             // Deduplicate Genres

@@ -27,7 +27,7 @@ function useDebounce(value, delay) {
 export default function SearchScreen({ navigation }) {
     const { theme } = useTheme();
     const { mode } = useMediaMode(); // Consume mode
-    const { getTopGenre } = useContext(LibraryStateContext);
+    const { getTopGenre, getAnimeStatus, addToLibrary } = useContext(LibraryStateContext);
 
     const [query, setQuery] = useState('');
     const debouncedQuery = useDebounce(query, 500);
@@ -136,6 +136,9 @@ export default function SearchScreen({ navigation }) {
     const renderItem = ({ item }) => (
         <AnimeCard
             item={item}
+            mode={mode}
+            currentStatus={getAnimeStatus(item.mal_id)}
+            onUpdateLibrary={addToLibrary}
             onPress={() => navigation.navigate('Details', { item })}
         />
     );
