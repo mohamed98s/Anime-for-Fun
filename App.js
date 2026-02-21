@@ -11,8 +11,8 @@ function AppContent() {
   const { mode } = useMediaMode();
 
   return (
-    <NavigationContainer>
-      <AppNavigator key={mode} />
+    <NavigationContainer key={mode}>
+      <AppNavigator />
       <StatusBar style="auto" />
     </NavigationContainer>
   );
