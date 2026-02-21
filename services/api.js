@@ -217,12 +217,15 @@ export const fetchSeasonalAnime = async () => {
             page++;
         }
 
-        const nullBroadcasts = allData.filter(item => !item.broadcast?.day);
-        console.log(`[AiringSync] Total Schedule Anime Fetched: ${allData.length}`);
+        // Deduplicate the massive fetched array by mal_id (Pagination shifting sometimes sends ghosts)
+        const uniqueData = Array.from(new Map(allData.map(item => [item.mal_id, item])).values());
+
+        const nullBroadcasts = uniqueData.filter(item => !item.broadcast?.day);
+        console.log(`[AiringSync] Total Schedule Anime Fetched: ${uniqueData.length}`);
         console.log(`[AiringSync] Anime with broadcast.day === null or unassigned: ${nullBroadcasts.length}`);
 
-        if (allData.length > 0) cache.seasonal = allData;
-        return allData;
+        if (uniqueData.length > 0) cache.seasonal = uniqueData;
+        return uniqueData;
     } catch (error) {
         console.error('Seasonal Error:', error);
         return [];

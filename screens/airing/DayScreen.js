@@ -26,7 +26,7 @@ export default function DayScreen({ day, data, navigation }) {
 
             if (day === 'Unknown') return bDay === 'Unknown';
             return bDay === day;
-        });
+        }).sort((a, b) => (b.score || 0) - (a.score || 0));
     }, [data, day]);
 
     if (filteredData.length === 0) {
