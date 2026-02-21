@@ -11,6 +11,7 @@ import DashboardScreen from '../screens/DashboardScreen';
 import AiringScreen from '../screens/AiringScreen';
 import DiscoveryScreen from '../screens/DiscoveryScreen';
 import SwipeScreen from '../screens/SwipeScreen';
+import SurpriseMeScreen from '../screens/SurpriseMeScreen';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useMediaMode } from '../context/MediaModeContext';
@@ -143,6 +144,12 @@ function DiscoveryStackNavigator() {
                 component={DiscoveryScreen}
                 options={{ headerShown: false }}
                 key={`discovery-${mode}`}
+            />
+            <DiscoveryStack.Screen
+                name="SurpriseMe"
+                component={SurpriseMeScreen}
+                options={{ headerShown: false }}
+                key={`surprise-${mode}`}
             />
             <DiscoveryStack.Screen
                 name="Swipe"
