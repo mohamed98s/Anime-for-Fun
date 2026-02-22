@@ -9,7 +9,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useMediaMode } from '../context/MediaModeContext';
 import { useLibrary } from '../context/LibraryContext';
 import { Ionicons } from '@expo/vector-icons';
-import { mediaService } from '../services/mediaService';
+import { useEndlessSwiper } from '../controllers/discoveryController';
 
 export default function SwipeScreen({ route, navigation }) {
     const { title, options } = route.params;
@@ -21,83 +21,17 @@ export default function SwipeScreen({ route, navigation }) {
     const { width, height } = useWindowDimensions();
     const isTablet = width >= 600;
 
-    const [cards, setCards] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [page, setPage] = useState(1);
-    const [finished, setFinished] = useState(false);
+    const { buffer: cards, loading, empty: finished, slideIndex, requestMore } = useEndlessSwiper(mode, options);
+
     const [currentIndex, setCurrentIndex] = useState(0);
     const swiperRef = useRef(null);
-    const isFetchingRef = useRef(false);
 
-    useEffect(() => {
-        loadCards(1, 0);
-    }, []);
-
-    // Global Reset Signal Listener
+    // Global Reset Signal Listener natively handled by hook since options/mode are dependencies
     useEffect(() => {
         if (modeVersion > 0) {
-            setCards([]);
-            setPage(1);
-            setFinished(false);
             setCurrentIndex(0);
-
-            // Push the fetch to the back of the event loop so React flushes the state updates first
-            setTimeout(() => {
-                loadCards(1, 0);
-            }, 0);
         }
     }, [modeVersion]);
-
-    useEffect(() => {
-        if (cards.length > 0 && cards.length - currentIndex <= 5 && !finished) {
-            loadCards(page, 0);
-        }
-    }, [currentIndex, cards.length, finished, page]);
-
-    const loadCards = async (fetchPage = page, consecutiveEmptyFetches = 0) => {
-        if (isFetchingRef.current && consecutiveEmptyFetches === 0) return;
-        try {
-            isFetchingRef.current = true;
-            if (cards.length === 0) setLoading(true);
-            const response = await mediaService.getMediaBatch(mode, fetchPage, options);
-            const data = response.data;
-
-            if (data && data.length > 0) {
-                const validItems = data.filter(item =>
-                    item.images?.jpg?.image_url &&
-                    !library.some(libItem => libItem.mal_id === item.mal_id)
-                );
-
-                if (validItems.length > 0) {
-                    setCards(prev => [...prev, ...validItems]);
-                    setPage(fetchPage + 1);
-                    if (!response.hasNextPage) {
-                        setFinished(true);
-                    }
-                } else if (response.hasNextPage) {
-                    // All items filtered out. Auto-fetch next page if limit not reached.
-                    if (consecutiveEmptyFetches < 2) {
-                        await loadCards(fetchPage + 1, consecutiveEmptyFetches + 1);
-                        return;
-                    } else {
-                        // Pause auto-fetching, show manual "Keep Looking" button
-                        setPage(fetchPage + 1);
-                    }
-                } else {
-                    setFinished(true);
-                }
-            } else {
-                setFinished(true);
-            }
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
-            if (consecutiveEmptyFetches === 0) {
-                isFetchingRef.current = false;
-            }
-        }
-    };
 
     const handleSwipedRight = (cardIndex) => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -113,11 +47,12 @@ export default function SwipeScreen({ route, navigation }) {
 
     const handleSwiped = (cardIndex) => {
         setCurrentIndex(cardIndex + 1);
+        slideIndex(cardIndex + 1);
     };
 
     const handleSwipedAll = () => {
         if (!finished) {
-            loadCards();
+            requestMore();
         } else {
             navigation.goBack();
         }
@@ -309,7 +244,7 @@ export default function SwipeScreen({ route, navigation }) {
                         </Text>
                         <TouchableOpacity
                             style={[styles.returnButton, { backgroundColor: theme.accent }]}
-                            onPress={() => loadCards(page, 0)}
+                            onPress={() => requestMore()}
                         >
                             <Text style={styles.returnButtonText}>Keep Looking</Text>
                         </TouchableOpacity>

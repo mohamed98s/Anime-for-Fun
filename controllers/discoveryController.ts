@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMediaMode } from '../context/MediaModeContext';
 import { useLibrary } from '../context/LibraryContext';
 import { mediaService } from '../services/mediaService';
@@ -70,4 +70,58 @@ export const useDiscoveryController = () => {
         setLogic,
         generateRecommendation
     };
+};
+
+export const useEndlessSwiper = (mode: string, options: any) => {
+    const { library } = useLibrary();
+    const { modeVersion } = useMediaMode();
+    const [buffer, setBuffer] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [empty, setEmpty] = useState(false);
+    const isFetching = useRef(false);
+
+    useEffect(() => {
+        let mounted = true;
+        const init = async () => {
+            setLoading(true);
+            setBuffer([]); // Clear UI immediately for smooth transition
+            const initialCards = await recommendationService.getEndlessRecommendations(mode, options, library, 8);
+            if (mounted) {
+                if (initialCards.length === 0) {
+                    setEmpty(true);
+                } else {
+                    setBuffer(initialCards);
+                }
+                setLoading(false);
+            }
+        };
+        init();
+        return () => { mounted = false; };
+    }, [mode, JSON.stringify(options), modeVersion]);
+
+    const requestMore = async () => {
+        if (isFetching.current) return;
+        isFetching.current = true;
+        const moreCards = await recommendationService.getEndlessRecommendations(mode, options, library, 5);
+        if (moreCards.length > 0) {
+            setBuffer(prev => [...prev, ...moreCards]);
+        }
+        isFetching.current = false;
+    };
+
+    const slideIndex = (currentIndex: number) => {
+        setBuffer(prev => {
+            const newBuffer = [...prev];
+            if (currentIndex > 10) {
+                newBuffer[currentIndex - 10] = null;
+            }
+            return newBuffer;
+        });
+
+        if (currentIndex >= buffer.length - 3) {
+            requestMore();
+        }
+    };
+
+    return { buffer, loading, empty, slideIndex, requestMore };
 };
