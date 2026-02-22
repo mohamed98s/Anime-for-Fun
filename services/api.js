@@ -1,5 +1,19 @@
 import axios from 'axios';
 
+const requestCache = new Map();
+
+export async function fetchCached(key, fetchFn) {
+    if (requestCache.has(key)) {
+        return requestCache.get(key);
+    }
+
+    const promise = fetchFn();
+    requestCache.set(key, promise);
+
+    const result = await promise;
+    return result;
+}
+
 const BASE_URL = 'https://api.jikan.moe/v4';
 
 // --- Queue system and Request Locks to prevent 429s ---
@@ -23,7 +37,8 @@ const enqueueRequest = (task, delayMs = 500) => {
 export const fetchMediaPage = async (type = 'anime', page = 1) => {
     return enqueueRequest(async () => {
         try {
-            const response = await axios.get(`${BASE_URL}/${type}?page=${page}&limit=20&order_by=popularity`);
+            const key = `fetchMediaPage_${type}_${page}`;
+            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}?page=${page}&limit=20&order_by=popularity`));
             return response.data.data;
         } catch (error) {
             console.error('API Fetch Error:', error);
@@ -74,7 +89,8 @@ export const fetchMediaBatch = async (type = 'anime', page = 1, options = {}) =>
 
             const fullUrl = `${url}?${params.toString()}`;
 
-            const response = await axios.get(fullUrl);
+            const key = `fetchMediaBatch_${type}_${page}_${params.toString()}`;
+            const response = await fetchCached(key, () => axios.get(fullUrl));
 
             return {
                 data: response.data.data || [],
@@ -113,7 +129,8 @@ const fetchWithLock = async (cacheKey, lockKey, url, delayMs = 500) => {
     // 3. Create new request, lock it, enqueue it
     const reqPromise = enqueueRequest(async () => {
         try {
-            const response = await axios.get(url);
+            const key = `fetchWithLock_${lockKey}`;
+            const response = await fetchCached(key, () => axios.get(url));
             const data = response.data.data || [];
             return data;
         } catch (error) {
@@ -153,7 +170,8 @@ export const fetchProducers = async (type = 'anime') => {
 export const searchMedia = async (type = 'anime', query) => {
     return enqueueRequest(async () => {
         try {
-            const response = await axios.get(`${BASE_URL}/${type}?q=${query}&limit=20`);
+            const key = `searchMedia_${type}_${query}`;
+            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}?q=${query}&limit=20`));
             return response.data.data;
         } catch (error) {
             console.error('Search Error:', error);
@@ -167,7 +185,8 @@ export const fetchTopMedia = async (type = 'anime', limit = 5) => {
 
     return enqueueRequest(async () => {
         try {
-            const response = await axios.get(`${BASE_URL}/top/${type}?filter=bypopularity&limit=${limit}`);
+            const key = `fetchTopMedia_${type}_${limit}`;
+            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/top/${type}?filter=bypopularity&limit=${limit}`));
             const data = response.data.data || [];
             if (limit === 5 && data.length > 0) cache.topMedia[type] = data;
             return data;
@@ -184,7 +203,8 @@ export const fetchRecommendations = async (type = 'anime', id) => {
 
     return enqueueRequest(async () => {
         try {
-            const response = await axios.get(`${BASE_URL}/${type}/${id}/recommendations`);
+            const key = `fetchRecommendations_${type}_${id}`;
+            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}/${id}/recommendations`));
             const data = response.data.data.map(item => item.entry).slice(0, 10);
             if (data.length > 0) cache.recommendations[type][id] = data;
             return data;
@@ -206,7 +226,8 @@ export const fetchSeasonalAnime = async () => {
         // Fetch all schedule pages to achieve parity with MAL (includes continuing previous seasons)
         while (hasNextPage) {
             const responseData = await enqueueRequest(async () => {
-                const res = await axios.get(`${BASE_URL}/schedules?page=${page}`);
+                const key = `fetchSeasonalAnime_schedules_${page}`;
+                const res = await fetchCached(key, () => axios.get(`${BASE_URL}/schedules?page=${page}`));
                 return res.data;
             }, 600); // 600ms delay safely stays under the 3 req/sec Jikan rate limit globally
 
