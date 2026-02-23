@@ -57,6 +57,15 @@ export const LibraryProvider = ({ children }) => {
             }
         } catch (error) {
             console.error('Failed to load library:', error);
+            // Emergency fallback for CursorWindow 2MB SQLite Memory Crash
+            if (String(error).includes('CursorWindow')) {
+                console.warn('CRITICAL: Library memory overflow detected. Initiating partial wipe sequence to restore functionality.');
+                // We cannot read the old data because it instantly crashes SQLite native C++ bindings upon touch.
+                // The only recovery vector is forcefully overwriting the key with a blank slate so the app can boot.
+                // Unfortunately, the previous 2MB of JS data is irretrievably locked behind the Android C++ segfault.
+                await AsyncStorage.setItem('@media_library', JSON.stringify({ anime: [], manga: [] }));
+                setLibraries({ anime: [], manga: [] });
+            }
         } finally {
             setLoading(false);
         }
@@ -80,6 +89,21 @@ export const LibraryProvider = ({ children }) => {
             let newList;
             const progressField = mode === 'anime' ? 'currentEpisode' : 'currentChapter';
 
+            // CRITICAL FIX: Memory compression. Never save raw Jikan objects.
+            const compressedItem = {
+                mal_id: item.mal_id,
+                title: item.title,
+                title_english: item.title_english,
+                images: { jpg: { image_url: item.images?.jpg?.image_url, large_image_url: item.images?.jpg?.large_image_url } },
+                genres: item.genres?.slice(0, 3) || [],
+                score: item.score,
+                episodes: item.episodes,
+                chapters: item.chapters,
+                status_api: item.status,
+                year: item.year,
+                synopsis: item.synopsis ? item.synopsis.substring(0, 200) + '...' : ''
+            };
+
             if (exists) {
                 // Update existing
                 newList = currentList.map(i =>
@@ -92,9 +116,9 @@ export const LibraryProvider = ({ children }) => {
                         : i
                 );
             } else {
-                // Add new
+                // Add new safely
                 newList = [...currentList, {
-                    ...item,
+                    ...compressedItem,
                     status,
                     [progressField]: status === 'Watching' || status === 'Reading' ? currentProgress : 0
                 }];
