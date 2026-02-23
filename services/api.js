@@ -194,6 +194,32 @@ export const fetchMediaById = async (type = 'anime', id) => {
     });
 };
 
+export const fetchMediaCharacters = async (type = 'anime', id) => {
+    return enqueueRequest(async () => {
+        try {
+            const key = `fetchMediaCharacters_${type}_${id}`;
+            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}/${id}/characters`));
+            return response.data.data;
+        } catch (error) {
+            console.error('Fetch Characters Error:', error.message);
+            return [];
+        }
+    });
+};
+
+export const fetchMediaDetailsRecommendations = async (type = 'anime', id) => {
+    return enqueueRequest(async () => {
+        try {
+            const key = `fetchMediaDetailsRecommendations_${type}_${id}`;
+            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}/${id}/recommendations`));
+            return response.data.data;
+        } catch (error) {
+            console.error('Fetch Details Recs Error:', error.message);
+            return [];
+        }
+    });
+};
+
 export const fetchTopMedia = async (type = 'anime', limit = 5) => {
     if (limit === 5 && cache.topMedia[type]) return cache.topMedia[type];
 

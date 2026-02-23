@@ -1,12 +1,12 @@
 import React from 'react';
-import { StyleSheet, View, Text, ScrollView, useWindowDimensions, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, useWindowDimensions, ActivityIndicator, FlatList, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useQuery } from '@tanstack/react-query';
 import { mediaService } from '../services/mediaService';
 
-export default function DetailsScreen({ route }) {
+export default function DetailsScreen({ route, navigation }) {
     const { id, type, item } = route.params || {};
     const mediaId = id || item?.mal_id;
     const mediaType = type || (item?.episodes !== undefined ? 'anime' : 'manga');
@@ -22,6 +22,59 @@ export default function DetailsScreen({ route }) {
     });
 
     const displayItem = fullItem || item;
+
+    const { data: characters } = useQuery({
+        queryKey: ['mediaCharacters', mediaType, mediaId],
+        queryFn: () => mediaService.getMediaCharacters(mediaType, mediaId),
+        staleTime: 1000 * 60 * 30,
+        enabled: !!displayItem,
+    });
+
+    const { data: recommendations } = useQuery({
+        queryKey: ['mediaDetailsRecommendations', mediaType, mediaId],
+        queryFn: () => mediaService.getMediaDetailsRecommendations(mediaType, mediaId),
+        staleTime: 1000 * 60 * 30,
+        enabled: !!displayItem,
+    });
+
+    const renderCharacter = ({ item }) => {
+        const imageUrl = item.character?.images?.jpg?.image_url || 'https://cdn.myanimelist.net/images/questionmark_50.gif';
+        return (
+            <View style={styles.characterCard}>
+                <Image
+                    source={{ uri: imageUrl }}
+                    style={styles.characterImage}
+                    contentFit="cover"
+                    transition={200}
+                />
+                <Text style={[styles.characterName, { color: theme.text }]} numberOfLines={2}>
+                    {item.character?.name}
+                </Text>
+            </View>
+        );
+    };
+
+    const renderRecommendation = ({ item }) => {
+        const entry = item.entry;
+        if (!entry) return null;
+
+        return (
+            <TouchableOpacity
+                style={styles.recCard}
+                onPress={() => navigation.push('Details', { id: entry.mal_id, type: mediaType })}
+            >
+                <Image
+                    source={{ uri: entry.images?.jpg?.image_url || entry.images?.jpg?.large_image_url }}
+                    style={styles.recImage}
+                    contentFit="cover"
+                    transition={200}
+                />
+                <Text style={[styles.recTitle, { color: theme.text }]} numberOfLines={2}>
+                    {entry.title}
+                </Text>
+            </TouchableOpacity>
+        );
+    };
 
     if (!displayItem && isLoading) {
         return (
@@ -58,7 +111,8 @@ export default function DetailsScreen({ route }) {
                 {/* Dynamic Spacer: Pushes content down so ONLY the Title and Meta row are visible initially like a bottom sheet */}
                 <View style={{ height: height - 180 }} />
 
-                <View style={[styles.contentContainer, { backgroundColor: theme.background }]}>
+                {/* Block 1: Details & Synopsis */}
+                <View style={[styles.island, styles.firstIsland, { backgroundColor: theme.background }]}>
                     <Text style={[styles.title, { color: theme.text }]}>
                         {displayItem.title_english || displayItem.title}
                     </Text>
@@ -85,6 +139,36 @@ export default function DetailsScreen({ route }) {
                         </>
                     )}
                 </View>
+
+                {/* Block 2: Characters */}
+                {characters && characters.length > 0 && (
+                    <View style={[styles.island, { backgroundColor: theme.background }]}>
+                        <Text style={[styles.sectionHeader, { color: theme.text }]}>Characters</Text>
+                        <FlatList
+                            data={characters}
+                            renderItem={renderCharacter}
+                            keyExtractor={(item, index) => `${item.character?.mal_id}-${index}`}
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.horizontalList}
+                        />
+                    </View>
+                )}
+
+                {/* Block 3: Recommendations */}
+                {recommendations && recommendations.length > 0 && (
+                    <View style={[styles.island, styles.lastIsland, { backgroundColor: theme.background }]}>
+                        <Text style={[styles.sectionHeader, { color: theme.text }]}>Recommendations</Text>
+                        <FlatList
+                            data={recommendations}
+                            renderItem={renderRecommendation}
+                            keyExtractor={(item, index) => `${item.entry?.mal_id}-${index}`}
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.horizontalList}
+                        />
+                    </View>
+                )}
             </ScrollView>
         </View>
     );
@@ -97,12 +181,16 @@ const styles = StyleSheet.create({
     image: {
         width: '100%',
     },
-    contentContainer: {
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        marginTop: -20,
+    island: {
+        borderRadius: 20,
         padding: 20,
-        minHeight: 500,
+        marginBottom: 20,
+    },
+    firstIsland: {
+        marginTop: -20,
+    },
+    lastIsland: {
+        marginBottom: 40,
     },
     title: {
         fontSize: 24,
@@ -129,5 +217,39 @@ const styles = StyleSheet.create({
     synopsis: {
         fontSize: 16,
         lineHeight: 24,
+    },
+    horizontalList: {
+        paddingVertical: 10,
+    },
+    characterCard: {
+        width: 100,
+        alignItems: 'center',
+        marginRight: 15,
+    },
+    characterImage: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        marginBottom: 8,
+        backgroundColor: '#ccc',
+    },
+    characterName: {
+        fontSize: 14,
+        textAlign: 'center',
+    },
+    recCard: {
+        width: 120,
+        marginRight: 15,
+    },
+    recImage: {
+        width: 120,
+        height: 170,
+        borderRadius: 12,
+        marginBottom: 8,
+        backgroundColor: '#ccc',
+    },
+    recTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
     },
 });
