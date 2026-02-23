@@ -159,6 +159,7 @@ export default function SwipeScreen({ route, navigation }) {
             <View style={styles.swiperContainer}>
                 {cards.length > 0 ? (
                     <Swiper
+                        key={modeVersion} // Natively destroy & recreate when Mode flips to hard reset internals
                         ref={swiperRef}
                         cards={cards} // Safe mapping
                         renderCard={(card) => {
@@ -169,7 +170,6 @@ export default function SwipeScreen({ route, navigation }) {
                         onSwipedRight={handleSwipedRight}
                         onSwipedLeft={handleSwipedLeft}
                         onSwipedAll={handleSwipedAll}
-                        cardIndex={currentIndex}
                         backgroundColor={'transparent'}
                         stackSize={3}
                         cardStyle={{
