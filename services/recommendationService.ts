@@ -19,28 +19,55 @@ const getExcludedLibraryIds = async (): Promise<Set<number>> => {
 };
 
 /**
- * Fetches exactly one Random Page from the API.
- * Jikan v4 has a hardcap of ~1000 pages depending on the endpoint and filters.
+ * Fetches exactly one Random Page from the API dynamically bounded by the endpoint's true length.
  */
 const fetchRandomPage = async (mode: string, options: any): Promise<any[]> => {
-    // Generate a secure random page number between 1 and 200
-    // We constrain to 200 to ensure we hit dense data pockets rather than sparse endpoints
-    const randomPage = Math.floor(Math.random() * 200) + 1;
+    let maxPages = 200; // Safe upper bound default
+    let page1Data = null;
 
-    // Create a unique key to prevent fetching the exact same page+filters back-to-back
-    const pageKey = `${mode}-${JSON.stringify(options)}-${randomPage}`;
+    try {
+        // 1. Fetch Page 1 securely to determine absolute true pagination bounds.
+        // Because TanStack caches this, 99% of loops will hit RAM for 0ms network latency!
+        const firstPageRes = await mediaService.getMediaBatch(mode, 1, { ...options, limit: 25 });
+        if (firstPageRes) {
+            maxPages = firstPageRes.lastVisiblePage || 1;
+            page1Data = firstPageRes.data || [];
+        }
+    } catch (e) {
+        console.warn(`[RecommendationService] Failed to dynamically scope ${mode} max pages. Proceeding with safe subset.`);
+    }
+
+    // Fast-path: If there's only 1 page mathematically existing, don't even roll the dice!
+    if (maxPages <= 1 && page1Data) {
+        return page1Data;
+    }
+
+    // 2. Generate a secure random bounded sequence capped at MaxPages (or 200 hard max)
+    const safeMax = Math.min(maxPages, 200);
+    let randomPage = Math.floor(Math.random() * safeMax) + 1;
+
+    // Fast-path: If the dice hit 1, we already have the memory buffer ready
+    if (randomPage === 1 && page1Data) {
+        return page1Data;
+    }
+
+    // 3. Prevent duplicate back-to-back fetching
+    let pageKey = `${mode}-${JSON.stringify(options)}-${randomPage}`;
     if (fetchedPages.has(pageKey)) {
-        // Fallback to slightly offset page if we hit the exact same seed
-        return fetchRandomPage(mode, { ...options, offset: 1 });
+        // Safely bump the page, overflowing back to 1 if we hit the ceiling
+        randomPage = randomPage >= safeMax ? 1 : randomPage + 1;
+        pageKey = `${mode}-${JSON.stringify(options)}-${randomPage}`;
+        if (randomPage === 1 && page1Data) return page1Data; // fast path collision
     }
 
     fetchedPages.add(pageKey);
-    // Keep set small
+    // Keep history ring buffer lean
     if (fetchedPages.size > 50) {
         const firstArr = Array.from(fetchedPages);
         fetchedPages.delete(firstArr[0]);
     }
 
+    // 4. Fire the precise clamped Jikan fetch
     try {
         const res = await mediaService.getMediaBatch(mode, randomPage, { ...options, limit: 25 });
         return res?.data || [];

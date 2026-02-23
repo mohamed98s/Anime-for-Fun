@@ -95,6 +95,7 @@ export const fetchMediaBatch = async (type = 'anime', page = 1, options = {}) =>
             return {
                 data: response.data.data || [],
                 hasNextPage: response.data.pagination?.has_next_page || false,
+                lastVisiblePage: response.data.pagination?.last_visible_page || 1,
                 nextStartPage: page + 1
             };
         } catch (error) {
