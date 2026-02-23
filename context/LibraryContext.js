@@ -147,19 +147,23 @@ export const LibraryProvider = ({ children }) => {
                         newVal = item[totalField];
                     }
 
-                    // Auto-move logic: Completion
-                    if (item[totalField] && newVal === item[totalField] && item.status !== 'Completed') {
-                        LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
-                        return { ...item, [progressField]: newVal, status: 'Completed' };
+                    // Derive definitive status based purely on progress bounds
+                    let newStatus = item.status;
+
+                    if (item[totalField] && newVal === item[totalField]) {
+                        newStatus = 'Completed';
+                    } else if (newVal > 0) {
+                        newStatus = activeStatus;
+                    } else if (newVal === 0) {
+                        newStatus = planStatus;
                     }
 
-                    // Auto-move logic: Starting
-                    if (newVal > 0 && item.status === planStatus) {
+                    // Animate the card if it swaps tabs
+                    if (newStatus !== item.status) {
                         LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
-                        return { ...item, [progressField]: newVal, status: activeStatus };
                     }
 
-                    return { ...item, [progressField]: newVal };
+                    return { ...item, [progressField]: newVal, status: newStatus };
                 }
                 return item;
             });
