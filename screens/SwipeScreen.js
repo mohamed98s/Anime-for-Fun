@@ -26,12 +26,6 @@ export default function SwipeScreen({ route, navigation }) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const swiperRef = useRef(null);
 
-    // FIX: Stable Cards Reference
-    const cardsRef = useRef([]);
-    useEffect(() => {
-        cardsRef.current = cards;
-    }, [cards]);
-
     // Global Reset Signal Listener natively handled by hook since options/mode are dependencies
     useEffect(() => {
         if (modeVersion > 0) {
@@ -41,16 +35,12 @@ export default function SwipeScreen({ route, navigation }) {
 
     const handleSwipedRight = (cardIndex) => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        requestAnimationFrame(() => {
-            recordSwipe(cardIndex, 'like');
-        });
+        recordSwipe(cardIndex, 'like');
     };
 
     const handleSwipedLeft = (cardIndex) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        requestAnimationFrame(() => {
-            recordSwipe(cardIndex, 'skip');
-        });
+        recordSwipe(cardIndex, 'skip');
     };
 
     const handleSwiped = (cardIndex) => {
@@ -168,8 +158,7 @@ export default function SwipeScreen({ route, navigation }) {
                     <Swiper
                         key={modeVersion} // Natively destroy & recreate when Mode flips to hard reset internals
                         ref={swiperRef}
-                        cards={cardsRef.current} // Safe mapping
-
+                        cards={cards} // Safe mapping
                         renderCard={(card) => {
                             if (!card) return null;
                             return renderCard(card);
