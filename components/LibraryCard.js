@@ -29,11 +29,10 @@ export default function LibraryCard({ item, navigation }) {
     const handleIncrement = () => {
         updateProgress(item.mal_id, 1);
     };
-
     return (
         <TouchableOpacity
             style={[styles.card, { backgroundColor: theme.card }]}
-            onPress={() => navigation.navigate('Details', { item })}
+            onPress={() => navigation.navigate('Details', { id: item.mal_id, type: mode })}
             activeOpacity={0.9}
         >
             <Image

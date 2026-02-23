@@ -139,7 +139,7 @@ export default function SearchScreen({ navigation }) {
             mode={mode}
             currentStatus={getAnimeStatus(item.mal_id)}
             onUpdateLibrary={addToLibrary}
-            onPress={() => navigation.navigate('Details', { item })}
+            onPress={() => navigation.navigate('Details', { id: item.mal_id, type: mode })}
         />
     );
 

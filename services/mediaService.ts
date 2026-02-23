@@ -1,4 +1,4 @@
-import { fetchMediaBatch, fetchGenres, fetchProducers } from './api';
+import { fetchMediaBatch, fetchGenres, fetchProducers, fetchMediaById } from './api';
 import { QueryClient } from '@tanstack/react-query';
 
 // Standalone QueryClient for usage outside of React components
@@ -25,6 +25,13 @@ export const mediaService = {
         return queryClient.fetchQuery({
             queryKey: ['producers', mode],
             queryFn: () => fetchProducers(mode),
+        });
+    },
+
+    getMediaById: async (mode, id) => {
+        return queryClient.fetchQuery({
+            queryKey: ['mediaById', mode, id],
+            queryFn: () => fetchMediaById(mode, id),
         });
     },
 

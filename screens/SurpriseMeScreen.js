@@ -53,7 +53,7 @@ export default function SurpriseMeScreen({ navigation }) {
                                 mode={mode}
                                 currentStatus={getAnimeStatus(recommendation.mal_id)}
                                 onUpdateLibrary={addToLibrary}
-                                onPress={() => navigation.navigate('Details', { item: recommendation, mode })}
+                                onPress={() => navigation.navigate('Details', { id: recommendation.mal_id, type: mode })}
                             />
                         </View>
                     </View>

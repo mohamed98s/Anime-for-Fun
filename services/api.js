@@ -181,6 +181,19 @@ export const searchMedia = async (type = 'anime', query) => {
     });
 };
 
+export const fetchMediaById = async (type = 'anime', id) => {
+    return enqueueRequest(async () => {
+        try {
+            const key = `fetchMediaById_${type}_${id}`;
+            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}/${id}/full`));
+            return response.data.data;
+        } catch (error) {
+            console.error('Fetch By ID Error:', error.message);
+            return null;
+        }
+    });
+};
+
 export const fetchTopMedia = async (type = 'anime', limit = 5) => {
     if (limit === 5 && cache.topMedia[type]) return cache.topMedia[type];
 

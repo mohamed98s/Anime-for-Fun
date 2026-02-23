@@ -129,7 +129,7 @@ export default function AnimeListScreen({ navigation }) {
                             mode={mode}
                             currentStatus={getAnimeStatus(item.mal_id)}
                             onUpdateLibrary={addToLibrary}
-                            onPress={() => navigation.navigate('Details', { item })}
+                            onPress={() => navigation.navigate('Details', { id: item.mal_id, type: mode })}
                         />
                     )}
                     keyExtractor={(item) => `${item.mal_id}`}

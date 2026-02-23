@@ -50,7 +50,7 @@ export default function DayScreen({ day, data, navigation }) {
                         mode="anime"
                         currentStatus={getAnimeStatus(item.mal_id)}
                         onUpdateLibrary={addToLibrary}
-                        onPress={() => navigation.navigate('Details', { item })}
+                        onPress={() => navigation.navigate('Details', { id: item.mal_id, type: 'anime' })}
                     />
                 )}
                 numColumns={2}

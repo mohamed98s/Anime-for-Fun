@@ -172,6 +172,12 @@ export default function SwipeScreen({ route, navigation }) {
                         onSwipedRight={handleSwipedRight}
                         onSwipedLeft={handleSwipedLeft}
                         onSwipedAll={handleSwipedAll}
+                        onTapCard={(cardIndex) => {
+                            const card = cards[cardIndex];
+                            if (card && card.mal_id) {
+                                navigation.navigate('Details', { id: card.mal_id, type: mode });
+                            }
+                        }}
                         backgroundColor={'transparent'}
                         stackSize={3}
                         cardStyle={{
