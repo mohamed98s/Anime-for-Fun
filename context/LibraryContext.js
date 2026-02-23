@@ -1,7 +1,7 @@
 import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UIManager, Platform, LayoutAnimation } from 'react-native';
 import { useMediaMode } from './MediaModeContext';
+import { getDB } from '../services/databaseService';
 
 export const LibraryStateContext = createContext(null);
 export const LibraryActionsContext = createContext(null);
@@ -35,148 +35,176 @@ export const LibraryProvider = ({ children }) => {
         loadLibrary();
     }, []);
 
-    // Save to storage whenever libraries change
-    useEffect(() => {
-        if (!loading) {
-            saveLibrary(libraries);
-        }
-    }, [libraries]);
-
     const loadLibrary = async () => {
         try {
-            const storedLibrary = await AsyncStorage.getItem('@media_library'); // New key
-            if (storedLibrary) {
-                setLibraries(JSON.parse(storedLibrary));
-            } else {
-                // Migration check: Look for old key
-                const oldLibrary = await AsyncStorage.getItem('@anime_library');
-                if (oldLibrary) {
-                    const parsedOld = JSON.parse(oldLibrary);
-                    setLibraries(prev => ({ ...prev, anime: parsedOld }));
+            const db = await getDB();
+            const allRows = await db.getAllAsync('SELECT * FROM library_media;');
+
+            const loadedAnime = [];
+            const loadedManga = [];
+
+            // Rehydrate JS objects from the flat schema
+            allRows.forEach((row) => {
+                const item = {
+                    mal_id: row.mal_id,
+                    title: row.title,
+                    images: { jpg: { image_url: row.image_url, large_image_url: row.image_url } },
+                    episodes: row.total_episodes,
+                    chapters: row.total_episodes,
+                    status: row.status,
+                    currentEpisode: row.mode === 'anime' ? row.progress : 0,
+                    currentChapter: row.mode === 'manga' ? row.progress : 0,
+                    ...JSON.parse(row.compressed_data_json || '{}')
+                };
+
+                if (row.mode === 'anime') {
+                    loadedAnime.push(item);
+                } else {
+                    loadedManga.push(item);
                 }
-            }
+            });
+
+            setLibraries({ anime: loadedAnime, manga: loadedManga });
         } catch (error) {
-            console.error('Failed to load library:', error);
-            // Emergency fallback for CursorWindow 2MB SQLite Memory Crash
-            if (String(error).includes('CursorWindow')) {
-                console.warn('CRITICAL: Library memory overflow detected. Initiating partial wipe sequence to restore functionality.');
-                // We cannot read the old data because it instantly crashes SQLite native C++ bindings upon touch.
-                // The only recovery vector is forcefully overwriting the key with a blank slate so the app can boot.
-                // Unfortunately, the previous 2MB of JS data is irretrievably locked behind the Android C++ segfault.
-                await AsyncStorage.setItem('@media_library', JSON.stringify({ anime: [], manga: [] }));
-                setLibraries({ anime: [], manga: [] });
-            }
+            console.error('[SQLite] Failed to load library:', error);
+            setLibraries({ anime: [], manga: [] });
         } finally {
             setLoading(false);
         }
     };
 
-    const saveLibrary = async (newLibraries) => {
+    const addToLibrary = async (item, status, currentProgress = 0) => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+
+        const progressField = mode === 'anime' ? 'currentEpisode' : 'currentChapter';
+        const totalAmount = mode === 'anime' ? item.episodes : item.chapters;
+        const initProgress = status === 'Watching' || status === 'Reading' ? currentProgress : 0;
+
+        const compressedData = {
+            title_english: item.title_english,
+            genres: item.genres?.slice(0, 3) || [],
+            score: item.score,
+            status_api: item.status,
+            year: item.year,
+            synopsis: item.synopsis ? item.synopsis.substring(0, 200) + '...' : ''
+        };
+
+        const newItemProps = {
+            mal_id: item.mal_id,
+            title: item.title_english || item.title,
+            images: item.images,
+            episodes: item.episodes,
+            chapters: item.chapters,
+            status: status,
+            [progressField]: initProgress,
+            ...compressedData
+        };
+
         try {
-            await AsyncStorage.setItem('@media_library', JSON.stringify(newLibraries));
-        } catch (error) {
-            console.error('Failed to save library:', error);
+            const db = await getDB();
+            // Perform the exact explicit SQLite mapping requested
+            await db.runAsync(
+                `INSERT OR REPLACE INTO library_media 
+                (mal_id, mode, status, progress, title, image_url, total_episodes, compressed_data_json) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    item.mal_id,
+                    mode,
+                    status,
+                    initProgress,
+                    newItemProps.title,
+                    item.images?.jpg?.image_url || null,
+                    totalAmount || null,
+                    JSON.stringify(compressedData)
+                ]
+            );
+
+            // Sync the exact DB write back into React Context state
+            setLibraries(prev => {
+                const currentList = prev[mode];
+                const exists = currentList.find(i => i.mal_id === item.mal_id);
+                let newList;
+
+                if (exists) {
+                    newList = currentList.map(i => i.mal_id === item.mal_id ? newItemProps : i);
+                } else {
+                    newList = [...currentList, newItemProps];
+                }
+                return { ...prev, [mode]: newList };
+            });
+
+        } catch (e) {
+            console.error('[SQLite] Failed to addToLibrary:', e);
         }
     };
 
-    const addToLibrary = (item, status, currentProgress = 0) => {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    const updateProgress = async (id, increment) => {
+        // Find existing item configuration
+        const currentList = libraries[mode];
+        const itemToUpdate = currentList.find(item => item.mal_id === id);
+        if (!itemToUpdate) return;
 
-        setLibraries(prev => {
-            const currentList = prev[mode];
-            const exists = currentList.find(i => i.mal_id === item.mal_id);
+        const progressField = mode === 'anime' ? 'currentEpisode' : 'currentChapter';
+        const totalField = mode === 'anime' ? 'episodes' : 'chapters';
+        const activeStatus = mode === 'anime' ? 'Watching' : 'Reading';
+        const planStatus = mode === 'anime' ? 'Plan to Watch' : 'Plan to Read';
 
-            let newList;
-            const progressField = mode === 'anime' ? 'currentEpisode' : 'currentChapter';
+        // Calculate theoretical bounds
+        const currentVal = itemToUpdate[progressField] || 0;
+        let newVal = Math.max(0, currentVal + increment);
 
-            // CRITICAL FIX: Memory compression. Never save raw Jikan objects.
-            const compressedItem = {
-                mal_id: item.mal_id,
-                title: item.title,
-                title_english: item.title_english,
-                images: { jpg: { image_url: item.images?.jpg?.image_url, large_image_url: item.images?.jpg?.large_image_url } },
-                genres: item.genres?.slice(0, 3) || [],
-                score: item.score,
-                episodes: item.episodes,
-                chapters: item.chapters,
-                status_api: item.status,
-                year: item.year,
-                synopsis: item.synopsis ? item.synopsis.substring(0, 200) + '...' : ''
-            };
+        // Cap at total if known
+        if (itemToUpdate[totalField] && newVal > itemToUpdate[totalField]) {
+            newVal = itemToUpdate[totalField];
+        }
 
-            if (exists) {
-                // Update existing
-                newList = currentList.map(i =>
-                    i.mal_id === item.mal_id
-                        ? {
-                            ...i,
-                            status,
-                            [progressField]: status === 'Watching' || status === 'Reading' ? currentProgress : 0
-                        }
-                        : i
-                );
-            } else {
-                // Add new safely
-                newList = [...currentList, {
-                    ...compressedItem,
-                    status,
-                    [progressField]: status === 'Watching' || status === 'Reading' ? currentProgress : 0
-                }];
+        // Derive definitive status
+        let newStatus = itemToUpdate.status;
+
+        if (itemToUpdate[totalField] && newVal === itemToUpdate[totalField]) {
+            newStatus = 'Completed';
+        } else if (newVal > 0) {
+            newStatus = activeStatus;
+        } else if (newVal === 0) {
+            newStatus = planStatus;
+        }
+
+        try {
+            const db = await getDB();
+            await db.runAsync(
+                `UPDATE library_media SET progress = ?, status = ? WHERE mal_id = ?`,
+                [newVal, newStatus, id]
+            );
+
+            // Animate only if tab jumps
+            if (newStatus !== itemToUpdate.status) {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
             }
 
-            return { ...prev, [mode]: newList };
-        });
+            setLibraries(prev => ({
+                ...prev,
+                [mode]: prev[mode].map(i =>
+                    i.mal_id === id ? { ...i, [progressField]: newVal, status: newStatus } : i
+                )
+            }));
+        } catch (e) {
+            console.error('[SQLite] Failed to updateProgress:', e);
+        }
     };
 
-    const updateProgress = (id, increment) => {
-        setLibraries(prevLibraries => {
-            const currentList = prevLibraries[mode];
-            const newList = currentList.map(item => {
-                if (item.mal_id === id) {
-                    const progressField = mode === 'anime' ? 'currentEpisode' : 'currentChapter';
-                    const totalField = mode === 'anime' ? 'episodes' : 'chapters';
-                    const activeStatus = mode === 'anime' ? 'Watching' : 'Reading';
-                    const planStatus = mode === 'anime' ? 'Plan to Watch' : 'Plan to Read';
+    const removeFromLibrary = async (id) => {
+        try {
+            const db = await getDB();
+            await db.runAsync(`DELETE FROM library_media WHERE mal_id = ?`, [id]);
 
-                    // Determine current progress
-                    const currentVal = item[progressField] || 0;
-                    let newVal = Math.max(0, currentVal + increment);
-
-                    // Cap at total if known
-                    if (item[totalField] && newVal > item[totalField]) {
-                        newVal = item[totalField];
-                    }
-
-                    // Derive definitive status based purely on progress bounds
-                    let newStatus = item.status;
-
-                    if (item[totalField] && newVal === item[totalField]) {
-                        newStatus = 'Completed';
-                    } else if (newVal > 0) {
-                        newStatus = activeStatus;
-                    } else if (newVal === 0) {
-                        newStatus = planStatus;
-                    }
-
-                    // Animate the card if it swaps tabs
-                    if (newStatus !== item.status) {
-                        LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
-                    }
-
-                    return { ...item, [progressField]: newVal, status: newStatus };
-                }
-                return item;
-            });
-            return { ...prevLibraries, [mode]: newList };
-        });
-    };
-
-    const removeFromLibrary = (id) => {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        setLibraries(prev => ({
-            ...prev,
-            [mode]: prev[mode].filter(item => item.mal_id !== id)
-        }));
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setLibraries(prev => ({
+                ...prev,
+                [mode]: prev[mode].filter(item => item.mal_id !== id)
+            }));
+        } catch (e) {
+            console.error('[SQLite] Failed to removeFromLibrary:', e);
+        }
     };
 
     const getAnimeStatus = (id) => {

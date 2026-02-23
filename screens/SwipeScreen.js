@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, Image, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Swiper from 'react-native-deck-swiper';
 import { BlurView } from 'expo-blur';
@@ -63,7 +64,9 @@ export default function SwipeScreen({ route, navigation }) {
                 <Image
                     source={{ uri: card.images?.jpg?.large_image_url || card.images?.jpg?.image_url }}
                     style={StyleSheet.absoluteFillObject}
-                    resizeMode="cover"
+                    contentFit="cover"
+                    transition={200}
+                    cachePolicy="memory-disk"
                 />
                 <LinearGradient
                     colors={['transparent', 'rgba(0,0,0,0.6)', '#000']}
@@ -135,6 +138,8 @@ export default function SwipeScreen({ route, navigation }) {
                         source={{ uri: cards[currentIndex].images.jpg.image_url }}
                         style={StyleSheet.absoluteFill}
                         blurRadius={8}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
                     />
                     <BlurView
                         intensity={80}

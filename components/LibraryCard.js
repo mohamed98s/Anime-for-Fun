@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useContext } from 'react';
-import { StyleSheet, View, Text, Image, TouchableOpacity, Animated } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Animated } from 'react-native';
+import { Image } from 'expo-image';
 import { useTheme } from '../context/ThemeContext';
 import { LibraryActionsContext } from '../context/LibraryContext';
 import { useMediaMode } from '../context/MediaModeContext';
@@ -38,6 +39,9 @@ export default function LibraryCard({ item, navigation }) {
             <Image
                 source={{ uri: item.images?.jpg?.image_url }}
                 style={styles.image}
+                contentFit="cover"
+                transition={200}
+                cachePolicy="memory-disk"
             />
             <View style={styles.content}>
                 <Text style={[styles.title, { color: theme.text }]} numberOfLines={2}>

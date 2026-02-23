@@ -94,8 +94,8 @@ export const useEndlessSwiper = (mode: string, options: any) => {
         currentIndex.current = 0;
 
         recommendationService.resetSessionCaches(); // Strictly enforce memory isolation
-        await recommendationService.initializeSession(mode, options, libraryRef.current);
 
+        // Ask the random queue for exactly 10 cards to start
         const initialCards = await recommendationService.getNextBatch(mode, options, libraryRef.current, 10);
         if (mounted.current) {
             if (!initialCards || initialCards.length === 0) {
@@ -118,9 +118,10 @@ export const useEndlessSwiper = (mode: string, options: any) => {
         isFetching.current = true;
 
         try {
-            const moreCards = await recommendationService.getNextBatch(mode, options, libraryRef.current, 5);
+            // Ask the random queue for 10 more cards to fluidly append 
+            const moreCards = await recommendationService.getNextBatch(mode, options, libraryRef.current, 10);
             if (!moreCards || moreCards.length === 0) return;
-            // ✅ ONLY APPEND
+            // ✅ EXACT APPEND ONLY: Never break the active memory pointer for the Swiper
             setBuffer(prev => [...prev, ...moreCards]);
         } finally {
             isFetching.current = false;
@@ -131,28 +132,22 @@ export const useEndlessSwiper = (mode: string, options: any) => {
         const currentItem = buffer[cardIndex];
 
         if (currentItem) {
-            setTimeout(() => {
-                recommendationService.recordSwipe(currentItem.mal_id);
-            }, 120);
-
             if (action === 'like') {
                 const status = mode === 'anime' ? 'Plan to Watch' : 'Plan to Read';
                 setTimeout(() => {
                     addToLibrary(currentItem, status);
                 }, 150);
             }
-
-            // Trigger background refill if queue runs below expanding threshold
-            recommendationService.triggerBackgroundRefill(mode, options);
         }
 
         currentIndex.current = cardIndex + 1;
 
+        // Fluid infinite illusion: background refill when 3 cards left
         if (currentIndex.current >= buffer.length - 3) {
             getNextBatch();
         }
 
-        // MEMORY SAFETY
+        // MEMORY SAFETY: Slide the completed array indexes off to prevent heap corruption over 200+ swipes
         if (currentIndex.current > 30) {
             setBuffer(prev => prev.slice(currentIndex.current - 20));
             currentIndex.current = 20;

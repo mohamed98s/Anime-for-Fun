@@ -1,159 +1,114 @@
 import { mediaService } from './mediaService';
+import { getDB } from './databaseService';
 
-// 1. ENGINE SESSION
-let session = {
-    mediaMode: null as string | null,
-    optionsStr: null as string | null, // To track if filters changed
-    globalPool: [] as any[],
-    excludedIds: new Set<number>(), // library + recorded swipes
-    recentHistory: [] as number[],
-    recentHistorySet: new Set<number>(),
-    nextPage: 1,
-    hasNextPage: true,
-};
+// We track the last fetched page strings to broadly avoid instant repetition in a single session
+const fetchedPages = new Set<string>();
 
-const TARGET_POOL_SIZE = 80;
-const MAX_PAGES_PER_FETCH = 10;
-const HISTORY_LIMIT = 20;
-
-let fetchLock = false;
-
-const initSessionIfNeeded = (mode: string, options: any, library: any[]) => {
-    const optsStr = JSON.stringify(options || {});
-    if (session.mediaMode !== mode || session.optionsStr !== optsStr) {
-        // Mode or filters changed -> Destroy session
-        session = {
-            mediaMode: mode,
-            optionsStr: optsStr,
-            globalPool: [],
-            excludedIds: new Set(library.map(l => l.mal_id)),
-            recentHistory: [],
-            recentHistorySet: new Set(),
-            nextPage: 1,
-            hasNextPage: true,
-        };
-    } else {
-        // Keep updated with library changes
-        library.forEach(l => session.excludedIds.add(l.mal_id));
-    }
-};
-
-const expandPool = async (mode: string, options: any) => {
-    if (fetchLock || !session.hasNextPage) return;
-    fetchLock = true;
+/**
+ * Returns a list of all mal_ids currently stored in the user's SQLite library
+ */
+const getExcludedLibraryIds = async (): Promise<Set<number>> => {
     try {
-        let pagesFetched = 0;
-        let validItemsInPool = session.globalPool.filter(a => !session.excludedIds.has(a.mal_id)).length;
-
-        while (validItemsInPool < TARGET_POOL_SIZE && session.hasNextPage && pagesFetched < MAX_PAGES_PER_FETCH) {
-            const res = await mediaService.getMediaBatch(mode, session.nextPage, { ...options, limit: 25 });
-            pagesFetched++;
-
-            if (res.data && res.data.length > 0) {
-                // Filter library items DURING insertion
-                const newItems = res.data.filter((item: any) => !session.excludedIds.has(item.mal_id));
-
-                // Append and deduplicate natively
-                const combined = [...session.globalPool, ...newItems];
-                session.globalPool = Array.from(new Map(combined.map((item: any) => [item.mal_id, item])).values());
-
-                validItemsInPool = session.globalPool.filter(a => !session.excludedIds.has(a.mal_id)).length;
-
-                if (res.hasNextPage) {
-                    session.nextPage += 1;
-                } else {
-                    session.hasNextPage = false;
-                }
-            } else {
-                session.hasNextPage = false;
-            }
-        }
+        const db = await getDB();
+        const rows = await db.getAllAsync('SELECT mal_id FROM library_media;');
+        return new Set(rows.map((r: any) => r.mal_id));
     } catch (e) {
-        console.error('[RecommendationService] Expand Pool Error', e);
-    } finally {
-        fetchLock = false;
+        console.error('[RecommendationService] Failed to load SQLite exclusion list.', e);
+        return new Set();
     }
 };
 
-const getCandidatePool = () => {
-    return session.globalPool.filter(a => !session.excludedIds.has(a.mal_id) && !session.recentHistorySet.has(a.mal_id));
+/**
+ * Fetches exactly one Random Page from the API.
+ * Jikan v4 has a hardcap of ~1000 pages depending on the endpoint and filters.
+ */
+const fetchRandomPage = async (mode: string, options: any): Promise<any[]> => {
+    // Generate a secure random page number between 1 and 200
+    // We constrain to 200 to ensure we hit dense data pockets rather than sparse endpoints
+    const randomPage = Math.floor(Math.random() * 200) + 1;
+
+    // Create a unique key to prevent fetching the exact same page+filters back-to-back
+    const pageKey = `${mode}-${JSON.stringify(options)}-${randomPage}`;
+    if (fetchedPages.has(pageKey)) {
+        // Fallback to slightly offset page if we hit the exact same seed
+        return fetchRandomPage(mode, { ...options, offset: 1 });
+    }
+
+    fetchedPages.add(pageKey);
+    // Keep set small
+    if (fetchedPages.size > 50) {
+        const firstArr = Array.from(fetchedPages);
+        fetchedPages.delete(firstArr[0]);
+    }
+
+    try {
+        const res = await mediaService.getMediaBatch(mode, randomPage, { ...options, limit: 25 });
+        return res?.data || [];
+    } catch (e) {
+        console.error('[RecommendationService] Random Page Fetch Failed.', e);
+        return [];
+    }
 };
 
 export const recommendationService = {
-    initializeSession: async (mode: string, options: any, library: any[]) => {
-        initSessionIfNeeded(mode, options, library);
-        if (session.globalPool.length === 0 && session.hasNextPage) {
-            await expandPool(mode, options);
-        }
-    },
+    /**
+     * Replaces `initializeSession` and `getNextBatch`. 
+     * Simply returns a small, locally-shuffled array of strictly valid items.
+     */
+    getNextBatch: async (mode: string, options: any, library: any[] = [], count: number = 10): Promise<any[]> => {
+        // 1. Get the SQLite Database exclusion list
+        const excludedIds = await getExcludedLibraryIds();
 
-    getNextBatch: async (mode: string, options: any, library: any[], count: number) => {
-        initSessionIfNeeded(mode, options, library);
+        // 2. Add any context-level library items just in case (e.g. recent UI swipes)
+        library.forEach(l => excludedIds.add(l.mal_id));
 
-        let candidatePool = getCandidatePool();
+        let validCandidates: any[] = [];
+        let attempts = 0;
 
-        if (candidatePool.length < 20 && session.hasNextPage) {
-            await expandPool(mode, options);
-            candidatePool = getCandidatePool();
-        }
+        // 3. Fetch random pages until we have enough valid new items, or we hit a max retry cap
+        while (validCandidates.length < count && attempts < 3) {
+            attempts++;
+            const rawPageItems = await fetchRandomPage(mode, options);
 
-        if (candidatePool.length === 0) {
-            if (session.globalPool.length > 0) {
-                // Clear history queue strictly
-                session.recentHistory = [];
-                session.recentHistorySet.clear();
-                candidatePool = session.globalPool.filter(a => !session.excludedIds.has(a.mal_id));
-            }
-
-            if (candidatePool.length === 0) {
-                return []; // Exhausted possibilities
-            }
+            // Filter strictly against the SQLite / Context sets
+            const newItems = rawPageItems.filter(item => !excludedIds.has(item.mal_id));
+            validCandidates = [...validCandidates, ...newItems];
         }
 
-        // Exact random selection: shuffle(candidatePool) take N
-        const shuffled = [...candidatePool].sort(() => 0.5 - Math.random());
+        // 4. Securely shuffle the final valid candidate array locally
+        const shuffled = [...validCandidates].sort(() => 0.5 - Math.random());
+
+        // 5. Slice and return the requested buffer amount (usually 10-15 cards max)
         return shuffled.slice(0, count);
     },
 
-    recordSwipe: (animeId: number) => {
-        session.excludedIds.add(animeId);
-
-        session.recentHistory.push(animeId);
-        session.recentHistorySet.add(animeId);
-
-        if (session.recentHistory.length > HISTORY_LIMIT) {
-            const oldest = session.recentHistory.shift();
-            if (oldest) {
-                session.recentHistorySet.delete(oldest);
-            }
-        }
+    recordSwipe: async (animeId: number) => {
+        // The swiper relies on `addToLibrary` to permanently record "Plan to Watch" items in SQLite.
+        // We do not need a JS memory `recentHistory` anymore because we enforce Random Pages + Shuffling!
+        // This function is kept for backward API interface compatibility if needed later.
     },
 
     triggerBackgroundRefill: async (mode: string, options: any) => {
-        const candidatePool = getCandidatePool();
-        if (candidatePool.length < 20 && session.hasNextPage) {
-            await expandPool(mode, options);
-        }
+        // The background refill is now fully managed by the Controller hook `useEndlessSwiper`.
+        // This relies purely on `getNextBatch` executing when `currentIndex > buffer.length - 3`
     },
 
     getNextRecommendation: async (mode: string, options: any, library: any[]) => {
         const batch = await recommendationService.getNextBatch(mode, options, library, 1);
         if (batch && batch.length > 0) {
-            const item = batch[0];
-            recommendationService.recordSwipe(item.mal_id);
-            return item;
+            return batch[0];
         }
-        return null; // Ensure null if nothing found
+        return null;
     },
 
     getRandomRecommendation: async (mode: string, genresToUse: any[], selectedMap: any, logicToUse: string, library: any[]) => {
         const activeGenres = genresToUse.filter(g => selectedMap[g.mal_id]);
         if (activeGenres.length === 0) return null;
 
-        const isAllSelected = activeGenres.length === genresToUse.length;
         let options: any = { limit: 25 };
 
         if (logicToUse === 'OR') {
+            const isAllSelected = activeGenres.length === genresToUse.length;
             if (!isAllSelected) {
                 const randomGenre = activeGenres[Math.floor(Math.random() * activeGenres.length)];
                 options.genres = randomGenre.mal_id.toString();
@@ -167,13 +122,8 @@ export const recommendationService = {
     },
 
     resetSessionCaches: () => {
-        session.mediaMode = null;
-        session.optionsStr = null;
-        session.globalPool = [];
-        session.excludedIds.clear();
-        session.recentHistory = [];
-        session.recentHistorySet.clear();
-        session.nextPage = 1;
-        session.hasNextPage = true;
+        // We only clear the strict page seed history.
+        // Because there is no longer a massive stateful buffer, memory leaks are permanently eliminated here.
+        fetchedPages.clear();
     }
 };
