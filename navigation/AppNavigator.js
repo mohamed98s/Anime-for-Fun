@@ -43,7 +43,7 @@ function HomeStackNavigator() {
             <HomeStack.Screen
                 name="Details"
                 component={DetailsScreen}
-                options={({ route }) => ({ title: route.params.item.title_english || 'Details' })}
+                options={{ title: 'Details' }}
             />
         </HomeStack.Navigator>
     );
@@ -69,7 +69,7 @@ function SearchStackNavigator() {
             <SearchStack.Screen
                 name="Details"
                 component={DetailsScreen}
-                options={({ route }) => ({ title: route.params.item.title_english || 'Details' })}
+                options={{ title: 'Details' }}
             />
         </SearchStack.Navigator>
     )
@@ -95,7 +95,7 @@ function LibraryStackNavigator() {
             <LibraryStack.Screen
                 name="Details"
                 component={DetailsScreen}
-                options={({ route }) => ({ title: route.params.item.title_english || 'Details' })}
+                options={{ title: 'Details' }}
             />
         </LibraryStack.Navigator>
     )
@@ -121,7 +121,7 @@ function AiringStackNavigator() {
             <AiringStack.Screen
                 name="Details"
                 component={DetailsScreen}
-                options={({ route }) => ({ title: route.params.item.title_english || 'Details' })}
+                options={{ title: 'Details' }}
             />
         </AiringStack.Navigator>
     )
@@ -160,7 +160,7 @@ function DiscoveryStackNavigator() {
             <DiscoveryStack.Screen
                 name="Details"
                 component={DetailsScreen}
-                options={({ route }) => ({ title: route.params.item.title_english || 'Details' })}
+                options={{ title: 'Details' }}
             />
         </DiscoveryStack.Navigator>
     )
