@@ -136,6 +136,7 @@ export const LibraryProvider = ({ children }) => {
                     const progressField = mode === 'anime' ? 'currentEpisode' : 'currentChapter';
                     const totalField = mode === 'anime' ? 'episodes' : 'chapters';
                     const activeStatus = mode === 'anime' ? 'Watching' : 'Reading';
+                    const planStatus = mode === 'anime' ? 'Plan to Watch' : 'Plan to Read';
 
                     // Determine current progress
                     const currentVal = item[progressField] || 0;
@@ -146,10 +147,16 @@ export const LibraryProvider = ({ children }) => {
                         newVal = item[totalField];
                     }
 
-                    // Auto-move logic
+                    // Auto-move logic: Completion
                     if (item[totalField] && newVal === item[totalField] && item.status !== 'Completed') {
                         LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
                         return { ...item, [progressField]: newVal, status: 'Completed' };
+                    }
+
+                    // Auto-move logic: Starting
+                    if (newVal > 0 && item.status === planStatus) {
+                        LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
+                        return { ...item, [progressField]: newVal, status: activeStatus };
                     }
 
                     return { ...item, [progressField]: newVal };

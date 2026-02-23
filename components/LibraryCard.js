@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function LibraryCard({ item, navigation }) {
     const { theme } = useTheme();
-    const { updateProgress } = useContext(LibraryActionsContext);
+    const { updateProgress, removeFromLibrary } = useContext(LibraryActionsContext);
     const { mode } = useMediaMode();
 
     // Progress bar animation
@@ -68,13 +68,33 @@ export default function LibraryCard({ item, navigation }) {
                 </View>
 
                 {/* Controls */}
-                <View style={styles.controls}>
+                <View style={[styles.controls, { alignItems: 'center' }]}>
                     <TouchableOpacity
-                        style={[styles.button, { backgroundColor: theme.accent }]}
-                        onPress={handleIncrement}
+                        style={[styles.button, { backgroundColor: '#FF3B30' }]}
+                        onPress={() => removeFromLibrary(item.mal_id)}
                     >
-                        <Ionicons name="add" size={20} color="#fff" />
+                        <Ionicons name="trash-outline" size={18} color="#fff" />
                     </TouchableOpacity>
+
+                    <View style={{ flex: 1 }} />
+
+                    {current > 0 && (
+                        <TouchableOpacity
+                            style={[styles.button, { backgroundColor: theme.border }]}
+                            onPress={() => updateProgress(item.mal_id, -1)}
+                        >
+                            <Ionicons name="remove" size={18} color={theme.text} />
+                        </TouchableOpacity>
+                    )}
+
+                    {(!total || current < total) && (
+                        <TouchableOpacity
+                            style={[styles.button, { backgroundColor: theme.accent }]}
+                            onPress={() => updateProgress(item.mal_id, 1)}
+                        >
+                            <Ionicons name="add" size={18} color="#fff" />
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
         </TouchableOpacity>
