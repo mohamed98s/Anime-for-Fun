@@ -44,7 +44,7 @@ export default function DetailsScreen({ route }) {
             {/* Fixed Background Image */}
             <Image
                 source={{ uri: displayItem.images?.jpg?.large_image_url || displayItem.images?.jpg?.image_url }}
-                style={[StyleSheet.absoluteFillObject, { height: height * 0.60, width: '100%' }]}
+                style={StyleSheet.absoluteFillObject}
                 contentFit="cover"
                 transition={200}
                 cachePolicy="memory-disk"
@@ -55,8 +55,8 @@ export default function DetailsScreen({ route }) {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ flexGrow: 1 }}
             >
-                {/* Transparent Spacer to expose image */}
-                <View style={{ height: height * 0.55 }} />
+                {/* Dynamic Spacer: Pushes content down so ONLY the Title and Meta row are visible initially like a bottom sheet */}
+                <View style={{ height: height - 180 }} />
 
                 <View style={[styles.contentContainer, { backgroundColor: theme.background }]}>
                     <Text style={[styles.title, { color: theme.text }]}>
