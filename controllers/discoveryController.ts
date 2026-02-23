@@ -83,6 +83,10 @@ export const useEndlessSwiper = (mode: string, options: any) => {
     const currentIndex = useRef(0);
     const mounted = useRef(true);
 
+    // Decouple library updates from re-triggering component unmounts
+    const libraryRef = useRef(library);
+    libraryRef.current = library;
+
     const initializeDiscovery = useCallback(async () => {
         setLoading(true);
         setBuffer([]); // Clear UI immediately
@@ -90,9 +94,9 @@ export const useEndlessSwiper = (mode: string, options: any) => {
         currentIndex.current = 0;
 
         recommendationService.resetSessionCaches(); // Strictly enforce memory isolation
-        await recommendationService.initializeSession(mode, options, library);
+        await recommendationService.initializeSession(mode, options, libraryRef.current);
 
-        const initialCards = await recommendationService.getNextBatch(mode, options, library, 10);
+        const initialCards = await recommendationService.getNextBatch(mode, options, libraryRef.current, 10);
         if (mounted.current) {
             if (!initialCards || initialCards.length === 0) {
                 setEmpty(true);
@@ -101,7 +105,7 @@ export const useEndlessSwiper = (mode: string, options: any) => {
             }
             setLoading(false);
         }
-    }, [mode, JSON.stringify(options), library]);
+    }, [mode, JSON.stringify(options)]); // Explicitly exclude `library` to prevent loop wiping
 
     useEffect(() => {
         mounted.current = true;
@@ -114,7 +118,7 @@ export const useEndlessSwiper = (mode: string, options: any) => {
         isFetching.current = true;
 
         try {
-            const moreCards = await recommendationService.getNextBatch(mode, options, library, 5);
+            const moreCards = await recommendationService.getNextBatch(mode, options, libraryRef.current, 5);
             if (!moreCards || moreCards.length === 0) return;
             // ✅ ONLY APPEND
             setBuffer(prev => [...prev, ...moreCards]);
@@ -127,10 +131,15 @@ export const useEndlessSwiper = (mode: string, options: any) => {
         const currentItem = buffer[cardIndex];
 
         if (currentItem) {
-            recommendationService.recordSwipe(currentItem.mal_id);
+            setTimeout(() => {
+                recommendationService.recordSwipe(currentItem.mal_id);
+            }, 120);
+
             if (action === 'like') {
                 const status = mode === 'anime' ? 'Plan to Watch' : 'Plan to Read';
-                addToLibrary(currentItem, status);
+                setTimeout(() => {
+                    addToLibrary(currentItem, status);
+                }, 150);
             }
 
             // Trigger background refill if queue runs below expanding threshold
@@ -144,15 +153,9 @@ export const useEndlessSwiper = (mode: string, options: any) => {
         }
 
         // MEMORY SAFETY
-        if (currentIndex.current > 0 && currentIndex.current % 20 === 0) {
-            setBuffer(prev => {
-                const newBuffer = [...prev];
-                // remove first 10 items safely while preserving order (to sustain Swiper indices)
-                for (let i = 0; i < 10; i++) {
-                    newBuffer[currentIndex.current - 20 + i] = null;
-                }
-                return newBuffer;
-            });
+        if (currentIndex.current > 30) {
+            setBuffer(prev => prev.slice(currentIndex.current - 20));
+            currentIndex.current = 20;
         }
     };
 
