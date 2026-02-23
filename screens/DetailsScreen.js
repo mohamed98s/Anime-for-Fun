@@ -40,14 +40,23 @@ export default function DetailsScreen({ route }) {
     }
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-            <ScrollView>
-                <Image
-                    source={{ uri: displayItem.images?.jpg?.large_image_url || displayItem.images?.jpg?.image_url }}
-                    style={[styles.image, { height: height * 0.45 }]}
-                    contentFit="cover"
-                    transition={200}
-                />
+        <View style={[styles.container, { backgroundColor: theme.background }]}>
+            {/* Fixed Background Image */}
+            <Image
+                source={{ uri: displayItem.images?.jpg?.large_image_url || displayItem.images?.jpg?.image_url }}
+                style={[StyleSheet.absoluteFillObject, { height: height * 0.60, width: '100%' }]}
+                contentFit="cover"
+                transition={200}
+                cachePolicy="memory-disk"
+            />
+
+            {/* Scrollable Overlay Layer */}
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ flexGrow: 1 }}
+            >
+                {/* Transparent Spacer to expose image */}
+                <View style={{ height: height * 0.55 }} />
 
                 <View style={[styles.contentContainer, { backgroundColor: theme.background }]}>
                     <Text style={[styles.title, { color: theme.text }]}>
@@ -77,7 +86,7 @@ export default function DetailsScreen({ route }) {
                     )}
                 </View>
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 }
 
