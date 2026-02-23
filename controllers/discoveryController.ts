@@ -73,65 +73,88 @@ export const useDiscoveryController = () => {
 };
 
 export const useEndlessSwiper = (mode: string, options: any) => {
-    const { library } = useLibrary();
+    const { library, addToLibrary } = useLibrary();
     const { modeVersion } = useMediaMode();
     const [buffer, setBuffer] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [empty, setEmpty] = useState(false);
+
     const isFetching = useRef(false);
+    const currentIndex = useRef(0);
+    const mounted = useRef(true);
+
+    const initializeDiscovery = useCallback(async () => {
+        setLoading(true);
+        setBuffer([]); // Clear UI immediately
+        setEmpty(false);
+        currentIndex.current = 0;
+
+        recommendationService.resetSessionCaches(); // Strictly enforce memory isolation
+        await recommendationService.initializeSession(mode, options, library);
+
+        const initialCards = await recommendationService.getNextBatch(mode, options, library, 10);
+        if (mounted.current) {
+            if (!initialCards || initialCards.length === 0) {
+                setEmpty(true);
+            } else {
+                setBuffer(initialCards);
+            }
+            setLoading(false);
+        }
+    }, [mode, JSON.stringify(options), library]);
 
     useEffect(() => {
-        let mounted = true;
-        const init = async () => {
-            setLoading(true);
-            setBuffer([]); // Clear UI immediately for smooth transition
-            recommendationService.resetSessionCaches(); // Strictly enforce memory isolation
-            const initialCards = await recommendationService.getEndlessRecommendations(mode, options, library, 12);
-            if (mounted) {
-                if (initialCards.length === 0) {
-                    setEmpty(true);
-                } else {
-                    setBuffer(initialCards);
-                }
-                setLoading(false);
-            }
-        };
-        init();
-        return () => { mounted = false; };
-    }, [mode, JSON.stringify(options), modeVersion]);
+        mounted.current = true;
+        initializeDiscovery();
+        return () => { mounted.current = false; };
+    }, [initializeDiscovery, modeVersion]);
 
-    const requestMore = async () => {
+    const getNextBatch = async () => {
         if (isFetching.current) return;
         isFetching.current = true;
 
         try {
-            const moreCards = await recommendationService.getEndlessRecommendations(mode, options, library, 5);
-            if (moreCards.length > 0) {
-                // ✅ ONLY APPEND
-                setBuffer(prev => [...prev, ...moreCards]);
-            }
+            const moreCards = await recommendationService.getNextBatch(mode, options, library, 5);
+            if (!moreCards || moreCards.length === 0) return;
+            // ✅ ONLY APPEND
+            setBuffer(prev => [...prev, ...moreCards]);
         } finally {
             isFetching.current = false;
         }
     };
 
-    const slideIndex = (currentIndex: number) => {
-        if (currentIndex >= buffer.length - 3) {
-            requestMore();
+    const recordSwipe = (cardIndex: number, action: 'skip' | 'like') => {
+        const currentItem = buffer[cardIndex];
+
+        if (currentItem) {
+            recommendationService.recordSwipe(currentItem.mal_id);
+            if (action === 'like') {
+                const status = mode === 'anime' ? 'Plan to Watch' : 'Plan to Read';
+                addToLibrary(currentItem, status);
+            }
+
+            // Trigger background refill if queue runs below expanding threshold
+            recommendationService.triggerBackgroundRefill(mode, options);
+        }
+
+        currentIndex.current = cardIndex + 1;
+
+        if (currentIndex.current >= buffer.length - 3) {
+            getNextBatch();
         }
 
         // MEMORY SAFETY
-        if (currentIndex > 0 && currentIndex % 20 === 0) {
+        if (currentIndex.current > 0 && currentIndex.current % 20 === 0) {
             setBuffer(prev => {
                 const newBuffer = [...prev];
-                // remove first 10 items safely while preserving order
+                // remove first 10 items safely while preserving order (to sustain Swiper indices)
                 for (let i = 0; i < 10; i++) {
-                    newBuffer[currentIndex - 20 + i] = null;
+                    newBuffer[currentIndex.current - 20 + i] = null;
                 }
                 return newBuffer;
             });
         }
     };
 
-    return { buffer, loading, empty, slideIndex, requestMore };
+    return { buffer, loading, empty, recordSwipe, getNextBatch };
 };

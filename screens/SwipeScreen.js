@@ -21,7 +21,7 @@ export default function SwipeScreen({ route, navigation }) {
     const { width, height } = useWindowDimensions();
     const isTablet = width >= 600;
 
-    const { buffer: cards, loading, empty: finished, slideIndex, requestMore } = useEndlessSwiper(mode, options);
+    const { buffer: cards, loading, empty: finished, recordSwipe, getNextBatch } = useEndlessSwiper(mode, options);
 
     const [currentIndex, setCurrentIndex] = useState(0);
     const swiperRef = useRef(null);
@@ -35,24 +35,21 @@ export default function SwipeScreen({ route, navigation }) {
 
     const handleSwipedRight = (cardIndex) => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        if (!cards[cardIndex]) return;
-        const item = cards[cardIndex];
-        const status = mode === 'anime' ? 'Plan to Watch' : 'Plan to Read';
-        addToLibrary(item, status);
+        recordSwipe(cardIndex, 'like');
     };
 
     const handleSwipedLeft = (cardIndex) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        recordSwipe(cardIndex, 'skip');
     };
 
     const handleSwiped = (cardIndex) => {
         setCurrentIndex(cardIndex + 1);
-        slideIndex(cardIndex + 1);
     };
 
     const handleSwipedAll = () => {
         if (!finished) {
-            requestMore();
+            getNextBatch();
         } else {
             navigation.goBack();
         }

@@ -41,9 +41,24 @@ export const mediaService = {
         if (activeRequests[cacheKey]) return activeRequests[cacheKey];
 
         const req = fetchMediaBatch(mode, page, options).then(res => {
+            if (!res) res = { data: [], hasNextPage: false };
+            if (!res.data || !Array.isArray(res.data)) res.data = [];
+
+            // Ignore null/invalid entries
+            const validData = res.data.filter(item => item && item.mal_id);
+
+            // Deduplicate by mal_id
+            const uniqueMap = new Map();
+            validData.forEach(item => uniqueMap.set(item.mal_id, item));
+            res.data = Array.from(uniqueMap.values());
+
             sessionCache[cacheKey] = res;
             delete activeRequests[cacheKey];
             return res;
+        }).catch(err => {
+            console.error('[MediaService]', err);
+            delete activeRequests[cacheKey];
+            return { data: [], hasNextPage: false };
         });
         activeRequests[cacheKey] = req;
         return req;

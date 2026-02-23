@@ -5,14 +5,17 @@ let session = {
     mediaMode: null as string | null,
     optionsStr: null as string | null, // To track if filters changed
     globalPool: [] as any[],
-    librarySet: new Set<number>(),
-    recentHistoryQueue: [] as number[],
+    excludedIds: new Set<number>(), // library + recorded swipes
+    recentHistory: [] as number[],
     recentHistorySet: new Set<number>(),
     nextPage: 1,
     hasNextPage: true,
 };
 
-const HISTORY_LIMIT = 40;
+const TARGET_POOL_SIZE = 80;
+const MAX_PAGES_PER_FETCH = 10;
+const HISTORY_LIMIT = 20;
+
 let fetchLock = false;
 
 const initSessionIfNeeded = (mode: string, options: any, library: any[]) => {
@@ -23,15 +26,15 @@ const initSessionIfNeeded = (mode: string, options: any, library: any[]) => {
             mediaMode: mode,
             optionsStr: optsStr,
             globalPool: [],
-            librarySet: new Set(library.map(l => l.mal_id)),
-            recentHistoryQueue: [],
+            excludedIds: new Set(library.map(l => l.mal_id)),
+            recentHistory: [],
             recentHistorySet: new Set(),
             nextPage: 1,
-            hasNextPage: true, // Assuming true to start fetching
+            hasNextPage: true,
         };
     } else {
         // Keep updated with library changes
-        session.librarySet = new Set(library.map(l => l.mal_id));
+        library.forEach(l => session.excludedIds.add(l.mal_id));
     }
 };
 
@@ -39,82 +42,108 @@ const expandPool = async (mode: string, options: any) => {
     if (fetchLock || !session.hasNextPage) return;
     fetchLock = true;
     try {
-        const res = await mediaService.getMediaBatch(mode, session.nextPage, { ...options, limit: 25 });
-        if (res.data && res.data.length > 0) {
-            // Filter library items DURING insertion
-            const newItems = res.data.filter((item: any) => !session.librarySet.has(item.mal_id));
+        let pagesFetched = 0;
+        let validItemsInPool = session.globalPool.filter(a => !session.excludedIds.has(a.mal_id)).length;
 
-            // Append and deduplicate
-            const combined = [...session.globalPool, ...newItems];
-            session.globalPool = Array.from(new Map(combined.map((item: any) => [item.mal_id, item])).values());
+        while (validItemsInPool < TARGET_POOL_SIZE && session.hasNextPage && pagesFetched < MAX_PAGES_PER_FETCH) {
+            const res = await mediaService.getMediaBatch(mode, session.nextPage, { ...options, limit: 25 });
+            pagesFetched++;
 
-            if (res.hasNextPage) {
-                session.nextPage += 1;
+            if (res.data && res.data.length > 0) {
+                // Filter library items DURING insertion
+                const newItems = res.data.filter((item: any) => !session.excludedIds.has(item.mal_id));
+
+                // Append and deduplicate natively
+                const combined = [...session.globalPool, ...newItems];
+                session.globalPool = Array.from(new Map(combined.map((item: any) => [item.mal_id, item])).values());
+
+                validItemsInPool = session.globalPool.filter(a => !session.excludedIds.has(a.mal_id)).length;
+
+                if (res.hasNextPage) {
+                    session.nextPage += 1;
+                } else {
+                    session.hasNextPage = false;
+                }
             } else {
                 session.hasNextPage = false;
             }
-        } else {
-            session.hasNextPage = false;
         }
     } catch (e) {
-        console.error(e);
+        console.error('[RecommendationService] Expand Pool Error', e);
     } finally {
         fetchLock = false;
     }
 };
 
+const getCandidatePool = () => {
+    return session.globalPool.filter(a => !session.excludedIds.has(a.mal_id) && !session.recentHistorySet.has(a.mal_id));
+};
+
 export const recommendationService = {
-    getNextRecommendation: async (mode: string, options: any, library: any[]) => {
+    initializeSession: async (mode: string, options: any, library: any[]) => {
+        initSessionIfNeeded(mode, options, library);
+        if (session.globalPool.length === 0 && session.hasNextPage) {
+            await expandPool(mode, options);
+        }
+    },
+
+    getNextBatch: async (mode: string, options: any, library: any[], count: number) => {
         initSessionIfNeeded(mode, options, library);
 
-        // 2. ADAPTIVE EXPANSION
-        let candidatePool = session.globalPool.filter(a => !session.librarySet.has(a.mal_id) && !session.recentHistorySet.has(a.mal_id));
+        let candidatePool = getCandidatePool();
 
-        while (candidatePool.length < 20 && session.hasNextPage) {
+        if (candidatePool.length < 20 && session.hasNextPage) {
             await expandPool(mode, options);
-            candidatePool = session.globalPool.filter(a => !session.librarySet.has(a.mal_id) && !session.recentHistorySet.has(a.mal_id));
+            candidatePool = getCandidatePool();
         }
 
-        // 3. RANDOM ALGORITHM
         if (candidatePool.length === 0) {
             if (session.globalPool.length > 0) {
-                // If we have items in global pool but candidate pool is empty (all in history)
                 // Clear history queue strictly
-                session.recentHistoryQueue = [];
+                session.recentHistory = [];
                 session.recentHistorySet.clear();
-                candidatePool = session.globalPool.filter(a => !session.librarySet.has(a.mal_id));
+                candidatePool = session.globalPool.filter(a => !session.excludedIds.has(a.mal_id));
             }
 
             if (candidatePool.length === 0) {
-                return null; // Exhausted absolute possibilities
+                return []; // Exhausted possibilities
             }
         }
 
-        const randomIndex = Math.floor(Math.random() * candidatePool.length);
-        const selectedAnime = candidatePool[randomIndex];
+        // Exact random selection: shuffle(candidatePool) take N
+        const shuffled = [...candidatePool].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, count);
+    },
 
-        if (!selectedAnime) return null;
+    recordSwipe: (animeId: number) => {
+        session.excludedIds.add(animeId);
 
-        session.recentHistoryQueue.push(selectedAnime.mal_id);
-        session.recentHistorySet.add(selectedAnime.mal_id);
+        session.recentHistory.push(animeId);
+        session.recentHistorySet.add(animeId);
 
-        if (session.recentHistoryQueue.length > HISTORY_LIMIT) {
-            const oldest = session.recentHistoryQueue.shift();
+        if (session.recentHistory.length > HISTORY_LIMIT) {
+            const oldest = session.recentHistory.shift();
             if (oldest) {
                 session.recentHistorySet.delete(oldest);
             }
         }
-
-        return selectedAnime;
     },
 
-    getEndlessRecommendations: async (mode: string, options: any, library: any[], count = 1) => {
-        const results = [];
-        for (let i = 0; i < count; i++) {
-            const rec = await recommendationService.getNextRecommendation(mode, options, library);
-            if (rec) results.push(rec);
+    triggerBackgroundRefill: async (mode: string, options: any) => {
+        const candidatePool = getCandidatePool();
+        if (candidatePool.length < 20 && session.hasNextPage) {
+            await expandPool(mode, options);
         }
-        return results;
+    },
+
+    getNextRecommendation: async (mode: string, options: any, library: any[]) => {
+        const batch = await recommendationService.getNextBatch(mode, options, library, 1);
+        if (batch && batch.length > 0) {
+            const item = batch[0];
+            recommendationService.recordSwipe(item.mal_id);
+            return item;
+        }
+        return null; // Ensure null if nothing found
     },
 
     getRandomRecommendation: async (mode: string, genresToUse: any[], selectedMap: any, logicToUse: string, library: any[]) => {
@@ -141,8 +170,8 @@ export const recommendationService = {
         session.mediaMode = null;
         session.optionsStr = null;
         session.globalPool = [];
-        session.librarySet.clear();
-        session.recentHistoryQueue = [];
+        session.excludedIds.clear();
+        session.recentHistory = [];
         session.recentHistorySet.clear();
         session.nextPage = 1;
         session.hasNextPage = true;
