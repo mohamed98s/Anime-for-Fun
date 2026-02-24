@@ -42,10 +42,39 @@ export const mediaService = {
         });
     },
 
-    getMediaDetailsRecommendations: async (mode, id) => {
+    getMediaDetailsRecommendations: async (mode, id, genreIds) => {
         return queryClient.fetchQuery({
-            queryKey: ['mediaDetailsRecommendations', mode, id],
-            queryFn: () => fetchMediaDetailsRecommendations(mode, id),
+            queryKey: ['mediaDetailsRecommendations', mode, id, genreIds],
+            queryFn: async () => {
+                try {
+                    // Layer 1: Attempt standard recommendations
+                    const standardRecs = await fetchMediaDetailsRecommendations(mode, id);
+                    if (standardRecs && standardRecs.length > 0) {
+                        return standardRecs;
+                    }
+                } catch (error) {
+                    console.warn(`Standard recommendations failed for ${mode} ${id}. Falling back to genres.`);
+                }
+
+                // Layer 2: Fallback to Advanced Search matching genres
+                if (!genreIds) return [];
+
+                try {
+                    const fallbackBatch = await fetchMediaBatch(mode, 1, { genres: genreIds, order_by: 'popularity', sort: 'desc' });
+                    if (fallbackBatch && fallbackBatch.data) {
+                        // Filter out the active media ID, take the top 10, and map to { entry: item } standard layout
+                        const fallbackRecs = fallbackBatch.data
+                            .filter(item => item.mal_id !== id)
+                            .slice(0, 10)
+                            .map(item => ({ entry: item }));
+                        return fallbackRecs;
+                    }
+                } catch (error) {
+                    console.error('Fallback recommendations failed:', error);
+                }
+
+                return [];
+            },
         });
     },
 

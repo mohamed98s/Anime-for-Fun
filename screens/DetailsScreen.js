@@ -23,6 +23,8 @@ export default function DetailsScreen({ route, navigation }) {
 
     const displayItem = fullItem || item;
 
+    const genreIds = displayItem?.genres?.map(g => g.mal_id).join(',') || '';
+
     const { data: characters } = useQuery({
         queryKey: ['mediaCharacters', mediaType, mediaId],
         queryFn: () => mediaService.getMediaCharacters(mediaType, mediaId),
@@ -31,8 +33,8 @@ export default function DetailsScreen({ route, navigation }) {
     });
 
     const { data: recommendations } = useQuery({
-        queryKey: ['mediaDetailsRecommendations', mediaType, mediaId],
-        queryFn: () => mediaService.getMediaDetailsRecommendations(mediaType, mediaId),
+        queryKey: ['mediaDetailsRecommendations', mediaType, mediaId, genreIds],
+        queryFn: () => mediaService.getMediaDetailsRecommendations(mediaType, mediaId, genreIds),
         staleTime: 1000 * 60 * 30,
         enabled: !!displayItem,
     });
@@ -125,6 +127,17 @@ export default function DetailsScreen({ route, navigation }) {
                         <Text style={[styles.metaText, { color: theme.subText }]}>{displayItem.status}</Text>
                     </View>
 
+                    {/* Genre Tags (Block 1 Addition) */}
+                    {displayItem.genres && displayItem.genres.length > 0 && (
+                        <View style={styles.genreContainer}>
+                            {displayItem.genres.map((genre) => (
+                                <View key={genre.mal_id} style={[styles.genrePill, { backgroundColor: theme.border }]}>
+                                    <Text style={[styles.genreText, { color: theme.text }]}>{genre.name}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    )}
+
                     <Text style={[styles.sectionHeader, { color: theme.text }]}>Synopsis</Text>
                     <Text style={[styles.synopsis, { color: theme.subText }]}>
                         {displayItem.synopsis || 'No synopsis available.'}
@@ -184,13 +197,13 @@ const styles = StyleSheet.create({
     island: {
         borderRadius: 20,
         padding: 20,
-        marginBottom: 20,
+        marginBottom: 40,
     },
     firstIsland: {
         marginTop: -20,
     },
     lastIsland: {
-        marginBottom: 40,
+        marginBottom: 60,
     },
     title: {
         fontSize: 24,
@@ -217,6 +230,21 @@ const styles = StyleSheet.create({
     synopsis: {
         fontSize: 16,
         lineHeight: 24,
+    },
+    genreContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 15,
+    },
+    genrePill: {
+        borderRadius: 15,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+    },
+    genreText: {
+        fontSize: 12,
+        fontWeight: 'bold',
     },
     horizontalList: {
         paddingVertical: 10,
