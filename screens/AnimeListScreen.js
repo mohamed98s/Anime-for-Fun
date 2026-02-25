@@ -226,8 +226,8 @@ export default function AnimeListScreen({ navigation }) {
                 visible={isFilterModalVisible}
                 onRequestClose={() => setIsFilterModalVisible(false)}
             >
-                <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.85)' }]}>
-                    <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
                             <Text style={[styles.modalTitle, { color: theme.text }]}>Feed Filters</Text>
                             <TouchableOpacity onPress={() => setIsFilterModalVisible(false)} hitSlop={{ top: 10, left: 10, bottom: 10, right: 10 }}>
@@ -235,22 +235,22 @@ export default function AnimeListScreen({ navigation }) {
                             </TouchableOpacity>
                         </View>
 
+                        <Text style={[styles.modalSub, { color: theme.subText }]}>Toggle acceptable genres for Feed:</Text>
+
                         <View style={styles.logicContainer}>
                             <TouchableOpacity
-                                style={[styles.logicBtn, genreLogic === 'AND' && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                                style={[styles.logicBtn, genreLogic === 'AND' ? { backgroundColor: theme.accent, borderColor: theme.accent } : { borderColor: theme.border }]}
                                 onPress={() => setGenreLogic('AND')}
                             >
                                 <Text style={{ color: genreLogic === 'AND' ? '#fff' : theme.text, fontWeight: 'bold' }}>Require ALL (AND)</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.logicBtn, genreLogic === 'OR' && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                                style={[styles.logicBtn, genreLogic === 'OR' ? { backgroundColor: theme.accent, borderColor: theme.accent } : { borderColor: theme.border }]}
                                 onPress={() => setGenreLogic('OR')}
                             >
                                 <Text style={{ color: genreLogic === 'OR' ? '#fff' : theme.text, fontWeight: 'bold' }}>Require ANY (OR)</Text>
                             </TouchableOpacity>
                         </View>
-
-                        <Text style={[styles.modalSubtitle, { color: theme.subText }]}>Toggle acceptable genres for Feed:</Text>
 
                         <ScrollView contentContainerStyle={styles.modalGenres}>
                             {genres.map(g => (
@@ -354,5 +354,71 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: 'bold',
         marginLeft: 10,
+    },
+    modalOverlay: {
+        flex: 1,
+        justifyContent: 'center',
+        padding: 20,
+        backgroundColor: 'rgba(0,0,0,0.7)'
+    },
+    modalContent: {
+        flex: 1,
+        borderRadius: 20,
+        padding: 24,
+        marginVertical: 40,
+        backgroundColor: '#1E1E1E', // Matching theme dark default explicitly for elevation
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOpacity: 0.25,
+        shadowRadius: 10
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20
+    },
+    modalTitle: {
+        fontSize: 22,
+        fontWeight: 'bold'
+    },
+    modalSub: {
+        marginBottom: 15,
+        fontSize: 14
+    },
+    logicContainer: {
+        flexDirection: 'row',
+        gap: 10,
+        marginBottom: 20,
+        justifyContent: 'center'
+    },
+    logicBtn: {
+        flex: 1,
+        paddingVertical: 12,
+        alignItems: 'center',
+        borderRadius: 12,
+        borderWidth: 1
+    },
+    modalGenres: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        paddingBottom: 20
+    },
+    modalChip: {
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 20
+    },
+    applyBtn: {
+        padding: 16,
+        borderRadius: 15,
+        alignItems: 'center',
+        marginTop: 15
+    },
+    applyBtnText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 18
     }
 });
