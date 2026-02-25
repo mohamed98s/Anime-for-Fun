@@ -8,10 +8,14 @@ import {
     TouchableOpacity,
     SafeAreaView,
     StatusBar,
-    Animated
+    Animated,
+    Modal,
+    ScrollView
 } from 'react-native';
 import AnimeCard from '../components/AnimeCard';
+import SharedFilterButton from '../components/SharedFilterButton';
 import { fetchMediaBatch } from '../services/api';
+import { mediaService } from '../services/mediaService';
 import { useTheme } from '../context/ThemeContext';
 import { useMediaMode } from '../context/MediaModeContext';
 import { useLibrary } from '../context/LibraryContext';
@@ -28,29 +32,54 @@ export default function AnimeListScreen({ navigation }) {
     const [page, setPage] = useState(1);
     const [hasNextPage, setHasNextPage] = useState(true);
 
+    // Exact Surprise Me Filter Mirrors
+    const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
+    const [genres, setGenres] = useState([]);
+    const [selectedGenres, setSelectedGenres] = useState({});
+    const [genreLogic, setGenreLogic] = useState('OR');
+
+    // Track active queried string to persist across Native Pagination
+    const [activeGenreString, setActiveGenreString] = useState('');
+
     // Reload when mode changes
     useEffect(() => {
-        setData([]);
-        setPage(1);
-        setHasNextPage(true);
-        setLoading(false); // Reset loading state
+        const initializeMode = async () => {
+            setData([]);
+            setPage(1);
+            setHasNextPage(true);
+            setLoading(false);
+            setActiveGenreString('');
 
-        // Short delay to allow state to reset before fetching
-        const timer = setTimeout(() => {
-            loadMedia(1, mode); // Pass 1 explicitly
-        }, 0);
+            // Re-fetch correct genre dictionary natively
+            try {
+                const allGenres = await mediaService.getGenres(mode);
+                const uniqueGenres = Array.from(new Map(allGenres.map(item => [item.mal_id, item])).values());
+                setGenres(uniqueGenres);
+
+                // Emulate initial "All toggled" state
+                const initialSelected = {};
+                uniqueGenres.forEach(g => { initialSelected[g.mal_id] = true });
+                setSelectedGenres(initialSelected);
+            } catch (e) { console.error(e) }
+
+            loadMedia(1, mode, '');
+        };
+
+        // Short delay
+        const timer = setTimeout(initializeMode, 0);
 
         return () => clearTimeout(timer);
     }, [mode]);
 
-    const loadMedia = async (pageToFetch = page, currentMode = mode) => {
+    const loadMedia = async (pageToFetch = page, currentMode = mode, currentGenres = activeGenreString) => {
         if (loading || (!hasNextPage && pageToFetch !== 1)) return;
 
         setLoading(true);
         setError(null);
 
         try {
-            const result = await fetchMediaBatch(currentMode, pageToFetch);
+            const options = currentGenres ? { genres: currentGenres } : {};
+            const result = await fetchMediaBatch(currentMode, pageToFetch, options);
             const newItems = result.data;
 
             setData(prev => {
@@ -68,6 +97,37 @@ export default function AnimeListScreen({ navigation }) {
         } finally {
             setLoading(false);
         }
+    };
+
+    const toggleGenre = (id) => {
+        setSelectedGenres(prev => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    const applyFilters = () => {
+        const activeGenres = genres.filter(g => selectedGenres[g.mal_id]);
+        let genreString = '';
+
+        if (activeGenres.length > 0) {
+            const isAllSelected = activeGenres.length === genres.length;
+
+            if (!isAllSelected) {
+                if (genreLogic === 'OR') {
+                    // Prevent Jikan Constraint fault -> pick 1 random active constraint
+                    const randomGenre = activeGenres[Math.floor(Math.random() * activeGenres.length)];
+                    genreString = randomGenre.mal_id.toString();
+                } else {
+                    // AND -> combine explicitly 
+                    genreString = activeGenres.map(g => g.mal_id).join(',');
+                }
+            }
+        }
+
+        setIsFilterModalVisible(false);
+        setActiveGenreString(genreString);
+        setData([]); // Clear UI 
+        setPage(1);
+        setHasNextPage(true);
+        loadMedia(1, mode, genreString);
     };
 
     const renderFooter = () => {
@@ -154,6 +214,60 @@ export default function AnimeListScreen({ navigation }) {
                 />
                 <Text style={styles.fabText}>{mode === 'anime' ? 'Switch to Manga' : 'Switch to Anime'}</Text>
             </TouchableOpacity>
+
+            {/* FAB for Filter */}
+            <SharedFilterButton onPress={() => setIsFilterModalVisible(true)} theme={theme} />
+
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={isFilterModalVisible}
+                onRequestClose={() => setIsFilterModalVisible(false)}
+            >
+                <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.85)' }]}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.modalTitle, { color: theme.text }]}>Feed Filters</Text>
+                            <TouchableOpacity onPress={() => setIsFilterModalVisible(false)} hitSlop={{ top: 10, left: 10, bottom: 10, right: 10 }}>
+                                <Ionicons name="close" size={24} color={theme.text} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.logicContainer}>
+                            <TouchableOpacity
+                                style={[styles.logicBtn, genreLogic === 'AND' && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                                onPress={() => setGenreLogic('AND')}
+                            >
+                                <Text style={{ color: genreLogic === 'AND' ? '#fff' : theme.text, fontWeight: 'bold' }}>Require ALL (AND)</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.logicBtn, genreLogic === 'OR' && { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                                onPress={() => setGenreLogic('OR')}
+                            >
+                                <Text style={{ color: genreLogic === 'OR' ? '#fff' : theme.text, fontWeight: 'bold' }}>Require ANY (OR)</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={[styles.modalSubtitle, { color: theme.subText }]}>Toggle acceptable genres for Feed:</Text>
+
+                        <ScrollView contentContainerStyle={styles.modalGenres}>
+                            {genres.map(g => (
+                                <TouchableOpacity
+                                    key={g.mal_id}
+                                    style={[styles.modalChip, { backgroundColor: selectedGenres[g.mal_id] ? theme.accent : theme.card }]}
+                                    onPress={() => toggleGenre(g.mal_id)}
+                                >
+                                    <Text style={{ color: selectedGenres[g.mal_id] ? '#fff' : theme.subText, fontSize: 13, fontWeight: '500' }}>{g.name}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+
+                        <TouchableOpacity style={[styles.applyBtn, { backgroundColor: theme.accent }]} onPress={applyFilters}>
+                            <Text style={styles.applyBtnText}>Apply Filters to List</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
