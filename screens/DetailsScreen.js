@@ -161,7 +161,7 @@ export default function DetailsScreen({ route, navigation }) {
                             {displayItem.title_english || displayItem.title}
                         </Text>
                         <View style={[styles.scoreBadge, { backgroundColor: theme.accent }]}>
-                            <Text style={styles.scoreText}>{displayItem.score || 'N/A'}</Text>
+                            <Text style={[styles.scoreText, { color: theme.background }]}>{displayItem.score || 'N/A'}</Text>
                         </View>
                     </View>
 
@@ -343,6 +343,7 @@ const styles = StyleSheet.create({
     },
     firstIsland: {
         marginTop: -20,
+        minHeight: 220,
     },
     lastIsland: {
         marginBottom: 60,
@@ -367,7 +368,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     scoreText: {
-        color: '#fff',
         fontWeight: 'bold',
         fontSize: 14,
     },
