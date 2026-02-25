@@ -181,21 +181,31 @@ export default function DetailsScreen({ route, navigation }) {
 
                     {/* AniList DB */}
                     <Text style={[styles.testSubHeader, { color: theme.text, marginTop: 15 }]}>AniList (GraphQL)</Text>
-                    {isAniListLoading ? <ActivityIndicator size="small" color={theme.accent} style={{ alignSelf: 'flex-start' }} /> :
+                    {isAniListLoading ? (
+                        <ActivityIndicator size="small" color={theme.accent} style={{ alignSelf: 'flex-start' }} />
+                    ) : aniListGenres && aniListGenres.length > 0 ? (
                         <View style={styles.testGenreContainer}>
-                            {aniListGenres && aniListGenres.length > 0 ? aniListGenres.map((genre, idx) => (
+                            {aniListGenres.map((genre, idx) => (
                                 <Text key={idx} style={[styles.testPill, { backgroundColor: theme.border, color: theme.text }]}>{genre}</Text>
-                            )) : <Text style={{ color: theme.subText }}>No AniList Mapping</Text>}
-                        </View>}
+                            ))}
+                        </View>
+                    ) : (
+                        <Text style={{ fontStyle: 'italic', color: theme.subText }}>No AniList Mapping Found</Text>
+                    )}
 
                     {/* Kitsu DB */}
                     <Text style={[styles.testSubHeader, { color: theme.text, marginTop: 15 }]}>Kitsu (REST)</Text>
-                    {isKitsuLoading ? <ActivityIndicator size="small" color={theme.accent} style={{ alignSelf: 'flex-start' }} /> :
+                    {isKitsuLoading ? (
+                        <ActivityIndicator size="small" color={theme.accent} style={{ alignSelf: 'flex-start' }} />
+                    ) : kitsuGenres && kitsuGenres.length > 0 ? (
                         <View style={styles.testGenreContainer}>
-                            {kitsuGenres && kitsuGenres.length > 0 ? kitsuGenres.map((genre, idx) => (
+                            {kitsuGenres.map((genre, idx) => (
                                 <Text key={idx} style={[styles.testPill, { backgroundColor: theme.border, color: theme.text }]}>{genre}</Text>
-                            )) : <Text style={{ color: theme.subText }}>No Kitsu Mapping</Text>}
-                        </View>}
+                            ))}
+                        </View>
+                    ) : (
+                        <Text style={{ fontStyle: 'italic', color: theme.subText }}>No Kitsu Mapping Found</Text>
+                    )}
                 </View>
 
                 {/* Block 2: Characters */}
