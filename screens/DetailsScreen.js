@@ -154,11 +154,16 @@ export default function DetailsScreen({ route, navigation }) {
                 {/* Dynamic Spacer: Pushes content down so ONLY the Title and Meta row are visible initially like a bottom sheet */}
                 <View style={{ height: height - 180 }} />
 
-                {/* Block 1: Details & Synopsis */}
+                {/* Block 1: The Hero Intro */}
                 <View style={[styles.island, styles.firstIsland, { backgroundColor: theme.background }]}>
-                    <Text style={[styles.title, { color: theme.text }]}>
-                        {displayItem.title_english || displayItem.title}
-                    </Text>
+                    <View style={styles.titleRow}>
+                        <Text style={[styles.title, { color: theme.text }]} numberOfLines={3}>
+                            {displayItem.title_english || displayItem.title}
+                        </Text>
+                        <View style={[styles.scoreBadge, { backgroundColor: theme.accent }]}>
+                            <Text style={styles.scoreText}>{displayItem.score || 'N/A'}</Text>
+                        </View>
+                    </View>
 
                     {/* Production Subtitle */}
                     {productionText ? (
@@ -167,7 +172,6 @@ export default function DetailsScreen({ route, navigation }) {
 
                     {/* Extended Meta Row */}
                     <View style={styles.metaContainer}>
-                        <Text style={[styles.score, { color: theme.accent }]}>Score: {displayItem.score || 'N/A'}</Text>
                         <Text style={[styles.metaText, { color: theme.subText }]}>
                             {[
                                 displayItem.type,
@@ -188,7 +192,10 @@ export default function DetailsScreen({ route, navigation }) {
                             ))}
                         </View>
                     )}
+                </View>
 
+                {/* Block 2: Synopsis & Background */}
+                <View style={[styles.island, { backgroundColor: theme.background }]}>
                     <Text style={[styles.sectionHeader, { color: theme.text }]}>Synopsis</Text>
                     <Text style={[styles.synopsis, { color: theme.subText }]}>
                         {displayItem.synopsis || 'No synopsis available.'}
@@ -202,37 +209,24 @@ export default function DetailsScreen({ route, navigation }) {
                             </Text>
                         </>
                     )}
-
-                    {/* Statistical Metadata Grid */}
-                    <View style={styles.statsGrid}>
-                        <View style={styles.statsRow}>
-                            <View style={[styles.statBox, { backgroundColor: theme.card }]}>
-                                <Text style={[styles.statLabel, { color: theme.subText }]}>Rank</Text>
-                                <Text style={[styles.statValue, { color: theme.accent }]}>{rankText}</Text>
-                            </View>
-                            <View style={[styles.statBox, { backgroundColor: theme.card }]}>
-                                <Text style={[styles.statLabel, { color: theme.subText }]}>Popularity</Text>
-                                <Text style={[styles.statValue, { color: theme.accent }]}>{popularityText}</Text>
-                            </View>
-                        </View>
-                        <View style={styles.statsRow}>
-                            <View style={[styles.statBox, { backgroundColor: theme.card }]}>
-                                <Text style={[styles.statLabel, { color: theme.subText }]}>Source</Text>
-                                <Text style={[styles.statValue, { color: theme.text }]} numberOfLines={1}>{sourceText}</Text>
-                            </View>
-                            <View style={[styles.statBox, { backgroundColor: theme.card }]}>
-                                <Text style={[styles.statLabel, { color: theme.subText }]}>Duration</Text>
-                                <Text style={[styles.statValue, { color: theme.text }]} numberOfLines={1}>{durationText}</Text>
-                            </View>
-                        </View>
-                        <View style={[styles.statBox, { backgroundColor: theme.card, marginTop: 8, alignItems: 'center' }]}>
-                            <Text style={[styles.statLabel, { color: theme.subText }]}>Rating</Text>
-                            <Text style={[styles.statValue, { color: theme.text }]}>{ratingText}</Text>
-                        </View>
-                    </View>
                 </View>
 
-                {/* Block 1.5: Relations Engine */}
+                {/* Block 3: Characters */}
+                {characters && characters.length > 0 && (
+                    <View style={[styles.island, { backgroundColor: theme.background }]}>
+                        <Text style={[styles.sectionHeader, { color: theme.text }]}>Characters</Text>
+                        <FlatList
+                            data={characters}
+                            renderItem={renderCharacter}
+                            keyExtractor={(item, index) => `${item.character?.mal_id}-${index}`}
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.horizontalList}
+                        />
+                    </View>
+                )}
+
+                {/* Block 4: Relations Engine */}
                 {relations.length > 0 && (
                     <View style={[styles.island, { backgroundColor: theme.background }]}>
                         <Text style={[styles.sectionHeader, { color: theme.text }]}>Related Media</Text>
@@ -242,20 +236,20 @@ export default function DetailsScreen({ route, navigation }) {
                             <View style={styles.prequelSequelContainer}>
                                 {prequelEntry ? (
                                     <TouchableOpacity
-                                        style={[styles.relationCard, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}
+                                        style={[styles.relationCard, { backgroundColor: theme.border }]}
                                         onPress={() => navigation.push('Details', { id: prequelEntry.mal_id, type: prequelEntry.type })}
                                     >
-                                        <Text style={[styles.relationType, { color: theme.accent }]}>Prequel</Text>
+                                        <Text style={[styles.relationType, { color: theme.text }]}>Prequel</Text>
                                         <Text style={[styles.relationTitle, { color: theme.text }]} numberOfLines={2}>{prequelEntry.name}</Text>
                                     </TouchableOpacity>
                                 ) : <View style={styles.relationCardPlaceholder} />}
 
                                 {sequelEntry ? (
                                     <TouchableOpacity
-                                        style={[styles.relationCard, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}
+                                        style={[styles.relationCard, { backgroundColor: theme.border }]}
                                         onPress={() => navigation.push('Details', { id: sequelEntry.mal_id, type: sequelEntry.type })}
                                     >
-                                        <Text style={[styles.relationType, { color: theme.accent }]}>Sequel</Text>
+                                        <Text style={[styles.relationType, { color: theme.text }]}>Sequel</Text>
                                         <Text style={[styles.relationTitle, { color: theme.text }]} numberOfLines={2}>{sequelEntry.name}</Text>
                                     </TouchableOpacity>
                                 ) : <View style={styles.relationCardPlaceholder} />}
@@ -285,24 +279,9 @@ export default function DetailsScreen({ route, navigation }) {
                     </View>
                 )}
 
-                {/* Block 2: Characters */}
-                {characters && characters.length > 0 && (
-                    <View style={[styles.island, { backgroundColor: theme.background }]}>
-                        <Text style={[styles.sectionHeader, { color: theme.text }]}>Characters</Text>
-                        <FlatList
-                            data={characters}
-                            renderItem={renderCharacter}
-                            keyExtractor={(item, index) => `${item.character?.mal_id}-${index}`}
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.horizontalList}
-                        />
-                    </View>
-                )}
-
-                {/* Block 3: Recommendations */}
+                {/* Block 5: Recommendations */}
                 {recommendations && recommendations.length > 0 && (
-                    <View style={[styles.island, styles.lastIsland, { backgroundColor: theme.background }]}>
+                    <View style={[styles.island, { backgroundColor: theme.background }]}>
                         <Text style={[styles.sectionHeader, { color: theme.text }]}>Recommendations</Text>
                         <FlatList
                             data={recommendations}
@@ -314,6 +293,37 @@ export default function DetailsScreen({ route, navigation }) {
                         />
                     </View>
                 )}
+
+                {/* Block 6: Deep Technical Stats (The Footer) */}
+                <View style={[styles.island, styles.lastIsland, { backgroundColor: theme.background }]}>
+                    <Text style={[styles.sectionHeader, { color: theme.text }]}>Information</Text>
+                    <View style={[styles.statsGrid, { marginTop: 5 }]}>
+                        <View style={styles.statsRow}>
+                            <View style={[styles.statBox, { backgroundColor: theme.card }]}>
+                                <Text style={[styles.statLabel, { color: theme.subText }]}>Rank</Text>
+                                <Text style={[styles.statValue, { color: theme.accent }]}>{rankText}</Text>
+                            </View>
+                            <View style={[styles.statBox, { backgroundColor: theme.card }]}>
+                                <Text style={[styles.statLabel, { color: theme.subText }]}>Popularity</Text>
+                                <Text style={[styles.statValue, { color: theme.accent }]}>{popularityText}</Text>
+                            </View>
+                        </View>
+                        <View style={styles.statsRow}>
+                            <View style={[styles.statBox, { backgroundColor: theme.card }]}>
+                                <Text style={[styles.statLabel, { color: theme.subText }]}>Source</Text>
+                                <Text style={[styles.statValue, { color: theme.text }]} numberOfLines={1}>{sourceText}</Text>
+                            </View>
+                            <View style={[styles.statBox, { backgroundColor: theme.card }]}>
+                                <Text style={[styles.statLabel, { color: theme.subText }]}>Duration</Text>
+                                <Text style={[styles.statValue, { color: theme.text }]} numberOfLines={1}>{durationText}</Text>
+                            </View>
+                        </View>
+                        <View style={[styles.statBox, { backgroundColor: theme.card, marginTop: 8, alignItems: 'center' }]}>
+                            <Text style={[styles.statLabel, { color: theme.subText }]}>Rating</Text>
+                            <Text style={[styles.statValue, { color: theme.text }]}>{ratingText}</Text>
+                        </View>
+                    </View>
+                </View>
             </ScrollView>
         </View>
     );
@@ -337,20 +347,35 @@ const styles = StyleSheet.create({
     lastIsland: {
         marginBottom: 60,
     },
+    titleRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 10,
+        gap: 15,
+    },
     title: {
         fontSize: 24,
         fontWeight: 'bold',
-        marginBottom: 10,
+        flex: 1,
+    },
+    scoreBadge: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    scoreText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 14,
     },
     metaContainer: {
         flexDirection: 'row',
         gap: 15,
         marginBottom: 20,
         flexWrap: 'wrap',
-    },
-    score: {
-        fontSize: 16,
-        fontWeight: 'bold',
     },
     metaText: {
         fontSize: 16,
