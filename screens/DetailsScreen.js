@@ -39,6 +39,31 @@ export default function DetailsScreen({ route, navigation }) {
 
     const genreIds = displayItem?.genres?.map(g => g.mal_id).join(',') || '';
 
+    // --- Extended Statistical Metadata ---
+    const rankText = displayItem?.rank ? `#${displayItem.rank}` : 'N/A';
+    const popularityText = displayItem?.popularity ? `#${displayItem.popularity}` : 'N/A';
+    const sourceText = displayItem?.source || 'Unknown';
+    const durationText = displayItem?.duration || 'Unknown';
+    const ratingText = displayItem?.rating || 'None';
+
+    // --- Relations Engine (Prequel, Sequel, Spin-offs) ---
+    const relations = displayItem?.relations || [];
+    const prequelNode = relations.find(r => r.relation.toLowerCase() === 'prequel');
+    const sequelNode = relations.find(r => r.relation.toLowerCase() === 'sequel');
+    const otherRelations = relations.filter(r => r.relation.toLowerCase() !== 'prequel' && r.relation.toLowerCase() !== 'sequel');
+
+    const prequelEntry = prequelNode?.entry?.[0] || null;
+    const sequelEntry = sequelNode?.entry?.[0] || null;
+
+    const flatOtherRelations = [];
+    otherRelations.forEach(relNode => {
+        if (relNode.entry) {
+            relNode.entry.forEach(entry => {
+                flatOtherRelations.push({ ...entry, relationType: relNode.relation });
+            });
+        }
+    });
+
     const { data: characters } = useQuery({
         queryKey: ['mediaCharacters', mediaType, mediaId],
         queryFn: () => mediaService.getMediaCharacters(mediaType, mediaId),
@@ -177,7 +202,88 @@ export default function DetailsScreen({ route, navigation }) {
                             </Text>
                         </>
                     )}
+
+                    {/* Statistical Metadata Grid */}
+                    <View style={styles.statsGrid}>
+                        <View style={styles.statsRow}>
+                            <View style={[styles.statBox, { backgroundColor: theme.card }]}>
+                                <Text style={[styles.statLabel, { color: theme.subText }]}>Rank</Text>
+                                <Text style={[styles.statValue, { color: theme.accent }]}>{rankText}</Text>
+                            </View>
+                            <View style={[styles.statBox, { backgroundColor: theme.card }]}>
+                                <Text style={[styles.statLabel, { color: theme.subText }]}>Popularity</Text>
+                                <Text style={[styles.statValue, { color: theme.accent }]}>{popularityText}</Text>
+                            </View>
+                        </View>
+                        <View style={styles.statsRow}>
+                            <View style={[styles.statBox, { backgroundColor: theme.card }]}>
+                                <Text style={[styles.statLabel, { color: theme.subText }]}>Source</Text>
+                                <Text style={[styles.statValue, { color: theme.text }]} numberOfLines={1}>{sourceText}</Text>
+                            </View>
+                            <View style={[styles.statBox, { backgroundColor: theme.card }]}>
+                                <Text style={[styles.statLabel, { color: theme.subText }]}>Duration</Text>
+                                <Text style={[styles.statValue, { color: theme.text }]} numberOfLines={1}>{durationText}</Text>
+                            </View>
+                        </View>
+                        <View style={[styles.statBox, { backgroundColor: theme.card, marginTop: 8, alignItems: 'center' }]}>
+                            <Text style={[styles.statLabel, { color: theme.subText }]}>Rating</Text>
+                            <Text style={[styles.statValue, { color: theme.text }]}>{ratingText}</Text>
+                        </View>
+                    </View>
                 </View>
+
+                {/* Block 1.5: Relations Engine */}
+                {relations.length > 0 && (
+                    <View style={[styles.island, { backgroundColor: theme.background }]}>
+                        <Text style={[styles.sectionHeader, { color: theme.text }]}>Related Media</Text>
+
+                        {/* Prequel / Sequel Split Row */}
+                        {(prequelEntry || sequelEntry) && (
+                            <View style={styles.prequelSequelContainer}>
+                                {prequelEntry ? (
+                                    <TouchableOpacity
+                                        style={[styles.relationCard, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}
+                                        onPress={() => navigation.push('Details', { id: prequelEntry.mal_id, type: prequelEntry.type })}
+                                    >
+                                        <Text style={[styles.relationType, { color: theme.accent }]}>Prequel</Text>
+                                        <Text style={[styles.relationTitle, { color: theme.text }]} numberOfLines={2}>{prequelEntry.name}</Text>
+                                    </TouchableOpacity>
+                                ) : <View style={styles.relationCardPlaceholder} />}
+
+                                {sequelEntry ? (
+                                    <TouchableOpacity
+                                        style={[styles.relationCard, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}
+                                        onPress={() => navigation.push('Details', { id: sequelEntry.mal_id, type: sequelEntry.type })}
+                                    >
+                                        <Text style={[styles.relationType, { color: theme.accent }]}>Sequel</Text>
+                                        <Text style={[styles.relationTitle, { color: theme.text }]} numberOfLines={2}>{sequelEntry.name}</Text>
+                                    </TouchableOpacity>
+                                ) : <View style={styles.relationCardPlaceholder} />}
+                            </View>
+                        )}
+
+                        {/* Other Relations Horizontal Glide */}
+                        {flatOtherRelations.length > 0 && (
+                            <FlatList
+                                data={flatOtherRelations}
+                                renderItem={({ item }) => (
+                                    <TouchableOpacity
+                                        style={[styles.glideCard, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}
+                                        onPress={() => navigation.push('Details', { id: item.mal_id, type: item.type })}
+                                    >
+                                        <Text style={[styles.relationType, { color: theme.subText }]}>{item.relationType}</Text>
+                                        <Text style={[styles.relationTitle, { color: theme.text }]} numberOfLines={3}>{item.name}</Text>
+                                        <Text style={{ color: theme.subText, fontSize: 10, marginTop: 4, fontStyle: 'italic', position: 'absolute', bottom: 10, right: 10 }}>{item.type.toUpperCase()}</Text>
+                                    </TouchableOpacity>
+                                )}
+                                keyExtractor={(item, index) => `${item.mal_id}-${index}`}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={{ paddingVertical: 5, gap: 15 }}
+                            />
+                        )}
+                    </View>
+                )}
 
                 {/* Block 2: Characters */}
                 {characters && characters.length > 0 && (
@@ -306,5 +412,63 @@ const styles = StyleSheet.create({
     recTitle: {
         fontSize: 14,
         fontWeight: 'bold',
+    },
+    statsGrid: {
+        marginTop: 25,
+        gap: 8,
+    },
+    statsRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    statBox: {
+        flex: 1,
+        padding: 12,
+        borderRadius: 12,
+        justifyContent: 'center',
+    },
+    statLabel: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        marginBottom: 4,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    statValue: {
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    prequelSequelContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 15,
+        marginBottom: 15,
+    },
+    relationCard: {
+        flex: 1,
+        padding: 15,
+        borderRadius: 12,
+        minHeight: 80,
+    },
+    relationCardPlaceholder: {
+        flex: 1,
+    },
+    relationType: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
+        marginBottom: 5,
+        letterSpacing: 0.5,
+    },
+    relationTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    glideCard: {
+        width: 160,
+        height: 100,
+        padding: 15,
+        borderRadius: 12,
+        justifyContent: 'flex-start',
     },
 });
