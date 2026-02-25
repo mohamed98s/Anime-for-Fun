@@ -23,6 +23,20 @@ export default function DetailsScreen({ route, navigation }) {
 
     const displayItem = fullItem || item;
 
+    // --- Enhanced Metadata Extraction ---
+    const productionEntities = displayItem?.studios || displayItem?.serializations || [];
+    const productionText = productionEntities.map(p => p.name).join(', ');
+
+    const seasonText = displayItem?.season ? displayItem.season.charAt(0).toUpperCase() + displayItem.season.slice(1) : '';
+    const yearText = displayItem?.year || '';
+    const seasonYearText = `${seasonText} ${yearText}`.trim();
+
+    const tags = [
+        ...(displayItem?.genres || []),
+        ...(displayItem?.themes || []),
+        ...(displayItem?.demographics || []),
+    ];
+
     const genreIds = displayItem?.genres?.map(g => g.mal_id).join(',') || '';
 
     const { data: characters } = useQuery({
@@ -121,20 +135,30 @@ export default function DetailsScreen({ route, navigation }) {
                         {displayItem.title_english || displayItem.title}
                     </Text>
 
+                    {/* Production Subtitle */}
+                    {productionText ? (
+                        <Text style={{ color: theme.subText, fontStyle: 'italic', marginBottom: 10, marginTop: -5 }}>{productionText}</Text>
+                    ) : null}
+
+                    {/* Extended Meta Row */}
                     <View style={styles.metaContainer}>
                         <Text style={[styles.score, { color: theme.accent }]}>Score: {displayItem.score || 'N/A'}</Text>
                         <Text style={[styles.metaText, { color: theme.subText }]}>
-                            {displayItem.type} • {displayItem.episodes ? `${displayItem.episodes} eps` : (displayItem.chapters ? `${displayItem.chapters} chaps` : '?')}
+                            {[
+                                displayItem.type,
+                                seasonYearText,
+                                displayItem.episodes ? `${displayItem.episodes} eps` : (displayItem.chapters ? `${displayItem.chapters} chaps` : null)
+                            ].filter(Boolean).join(' • ')}
                         </Text>
                         <Text style={[styles.metaText, { color: theme.subText }]}>{displayItem.status}</Text>
                     </View>
 
-                    {/* Genre Tags (Block 1 Addition) */}
-                    {displayItem.genres && displayItem.genres.length > 0 && (
+                    {/* Unified Tags (Genres, Themes, Demographics) */}
+                    {tags && tags.length > 0 && (
                         <View style={styles.genreContainer}>
-                            {displayItem.genres.map((genre) => (
-                                <View key={genre.mal_id} style={[styles.genrePill, { backgroundColor: theme.border }]}>
-                                    <Text style={[styles.genreText, { color: theme.text }]}>{genre.name}</Text>
+                            {tags.map((tag) => (
+                                <View key={tag.mal_id} style={[styles.genrePill, { backgroundColor: theme.border }]}>
+                                    <Text style={[styles.genreText, { color: theme.text }]}>{tag.name}</Text>
                                 </View>
                             ))}
                         </View>
@@ -216,6 +240,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: 15,
         marginBottom: 20,
+        flexWrap: 'wrap',
     },
     score: {
         fontSize: 16,
