@@ -39,19 +39,7 @@ export default function DetailsScreen({ route, navigation }) {
         enabled: !!displayItem,
     });
 
-    const { data: aniListGenres, isLoading: isAniListLoading } = useQuery({
-        queryKey: ['aniListGenres', mediaType, mediaId],
-        queryFn: () => mediaService.getAniListGenres(mediaType, mediaId),
-        staleTime: 1000 * 60 * 30,
-        enabled: !!displayItem && !isLoading, // Parallel trigger post-load 
-    });
 
-    const { data: kitsuGenres, isLoading: isKitsuLoading } = useQuery({
-        queryKey: ['kitsuGenres', mediaType, mediaId],
-        queryFn: () => mediaService.getKitsuGenres(mediaType, mediaId),
-        staleTime: 1000 * 60 * 30,
-        enabled: !!displayItem && !isLoading,
-    });
 
     const renderCharacter = ({ item }) => {
         const imageUrl = item.character?.images?.jpg?.image_url || 'https://cdn.myanimelist.net/images/questionmark_50.gif';
@@ -164,47 +152,6 @@ export default function DetailsScreen({ route, navigation }) {
                                 {displayItem.background}
                             </Text>
                         </>
-                    )}
-                </View>
-
-                {/* Block 1.5: API Genre Test Island */}
-                <View style={[styles.island, { backgroundColor: theme.card, borderColor: theme.accent, borderWidth: 1 }]}>
-                    <Text style={[styles.testHeader, { color: theme.accent }]}>Multi-API Genre Test (Debug)</Text>
-
-                    {/* Jikan DB */}
-                    <Text style={[styles.testSubHeader, { color: theme.text }]}>Jikan API (Current)</Text>
-                    <View style={styles.testGenreContainer}>
-                        {displayItem.genres && displayItem.genres.length > 0 ? displayItem.genres.map((genre) => (
-                            <Text key={genre.mal_id} style={[styles.testPill, { backgroundColor: theme.border, color: theme.text }]}>{genre.name}</Text>
-                        )) : <Text style={{ color: theme.subText }}>None</Text>}
-                    </View>
-
-                    {/* AniList DB */}
-                    <Text style={[styles.testSubHeader, { color: theme.text, marginTop: 15 }]}>AniList (GraphQL)</Text>
-                    {isAniListLoading ? (
-                        <ActivityIndicator size="small" color={theme.accent} style={{ alignSelf: 'flex-start' }} />
-                    ) : aniListGenres && aniListGenres.length > 0 ? (
-                        <View style={styles.testGenreContainer}>
-                            {aniListGenres.map((genre, idx) => (
-                                <Text key={idx} style={[styles.testPill, { backgroundColor: theme.border, color: theme.text }]}>{genre}</Text>
-                            ))}
-                        </View>
-                    ) : (
-                        <Text style={{ fontStyle: 'italic', color: theme.subText }}>No AniList Mapping Found</Text>
-                    )}
-
-                    {/* Kitsu DB */}
-                    <Text style={[styles.testSubHeader, { color: theme.text, marginTop: 15 }]}>Kitsu (REST)</Text>
-                    {isKitsuLoading ? (
-                        <ActivityIndicator size="small" color={theme.accent} style={{ alignSelf: 'flex-start' }} />
-                    ) : kitsuGenres && kitsuGenres.length > 0 ? (
-                        <View style={styles.testGenreContainer}>
-                            {kitsuGenres.map((genre, idx) => (
-                                <Text key={idx} style={[styles.testPill, { backgroundColor: theme.border, color: theme.text }]}>{genre}</Text>
-                            ))}
-                        </View>
-                    ) : (
-                        <Text style={{ fontStyle: 'italic', color: theme.subText }}>No Kitsu Mapping Found</Text>
                     )}
                 </View>
 
@@ -335,27 +282,4 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: 'bold',
     },
-    testHeader: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginBottom: 15,
-        textAlign: 'center',
-    },
-    testSubHeader: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        marginBottom: 8,
-    },
-    testGenreContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 6,
-    },
-    testPill: {
-        paddingVertical: 4,
-        paddingHorizontal: 10,
-        borderRadius: 12,
-        fontSize: 12,
-        overflow: 'hidden',
-    }
 });
