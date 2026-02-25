@@ -291,4 +291,51 @@ export const fetchSeasonalAnime = async () => {
         console.error('Seasonal Error:', error);
         return [];
     }
-}
+};
+
+/**
+ * EXPERIMENTAL: Multi-API Genre Tests
+ */
+export const fetchAniListGenres = async (mal_id, type = 'anime') => {
+    return enqueueRequest(async () => {
+        try {
+            const query = `
+                query ($idMal: Int, $type: MediaType) {
+                    Media(idMal: $idMal, type: $type) {
+                        genres
+                    }
+                }
+            `;
+            const variables = { idMal: mal_id, type: type.toUpperCase() };
+
+            const response = await axios.post('https://graphql.anilist.co', { query, variables });
+            return response.data?.data?.Media?.genres || [];
+        } catch (error) {
+            console.warn(`[AniList Fetch Error -> ${mal_id}]:`, error.message);
+            return [];
+        }
+    });
+};
+
+export const fetchKitsuGenres = async (mal_id, type = 'anime') => {
+    return enqueueRequest(async () => {
+        try {
+            const url = `https://kitsu.io/api/edge/mappings?filter[externalSite]=myanimelist/${type}&filter[externalId]=${mal_id}&include=item,item.categories`;
+            const response = await axios.get(url);
+
+            if (!response.data || !response.data.included || response.data.included.length === 0) {
+                return [];
+            }
+
+            // Kitsu maps genres as "categories" inside the included array
+            const categories = response.data.included
+                .filter(inc => inc.type === 'categories' && inc.attributes && inc.attributes.title)
+                .map(inc => inc.attributes.title);
+
+            return categories || [];
+        } catch (error) {
+            console.warn(`[Kitsu Fetch Error -> ${mal_id}]:`, error.message);
+            return [];
+        }
+    });
+};

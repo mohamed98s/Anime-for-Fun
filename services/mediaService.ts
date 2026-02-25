@@ -1,4 +1,4 @@
-import { fetchMediaBatch, fetchGenres, fetchProducers, fetchMediaById, fetchMediaCharacters, fetchMediaDetailsRecommendations } from './api';
+import { fetchMediaBatch, fetchGenres, fetchProducers, fetchMediaById, fetchMediaCharacters, fetchMediaDetailsRecommendations, fetchAniListGenres, fetchKitsuGenres } from './api';
 import { QueryClient } from '@tanstack/react-query';
 
 // Standalone QueryClient for usage outside of React components
@@ -105,6 +105,20 @@ export const mediaService = {
             console.error('[MediaService]', err);
             return { data: [], hasNextPage: false };
         }
+    },
+
+    getAniListGenres: async (mode, mal_id) => {
+        return queryClient.fetchQuery({
+            queryKey: ['aniListGenres', mode, mal_id],
+            queryFn: () => fetchAniListGenres(mal_id, mode),
+        });
+    },
+
+    getKitsuGenres: async (mode, mal_id) => {
+        return queryClient.fetchQuery({
+            queryKey: ['kitsuGenres', mode, mal_id],
+            queryFn: () => fetchKitsuGenres(mal_id, mode),
+        });
     },
 
     clearCache: () => {
