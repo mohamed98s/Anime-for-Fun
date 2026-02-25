@@ -170,6 +170,11 @@ export default function AnimeListScreen({ navigation }) {
                 backgroundColor={theme.background}
             />
 
+            {/* Global Header Filter Injection */}
+            <View style={styles.filterRowContainer}>
+                <SharedFilterButton onPress={() => setIsFilterModalVisible(true)} />
+            </View>
+
             {error && data.length === 0 ? (
                 <View style={styles.centerContainer}>
                     <Text style={[styles.errorText, { color: theme.notification }]}>Error: {error}</Text>
@@ -214,9 +219,6 @@ export default function AnimeListScreen({ navigation }) {
                 />
                 <Text style={styles.fabText}>{mode === 'anime' ? 'Switch to Manga' : 'Switch to Anime'}</Text>
             </TouchableOpacity>
-
-            {/* FAB for Filter */}
-            <SharedFilterButton onPress={() => setIsFilterModalVisible(true)} theme={theme} />
 
             <Modal
                 animationType="slide"
@@ -275,6 +277,13 @@ export default function AnimeListScreen({ navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+    filterRowContainer: {
+        paddingHorizontal: 15,
+        paddingTop: 10,
+        paddingBottom: 5,
+        alignItems: 'flex-end', // Right align natively above list
+        zIndex: 10,
     },
     listContent: {
         padding: 10,
