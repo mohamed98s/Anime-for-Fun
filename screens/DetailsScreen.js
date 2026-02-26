@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, View, Text, ScrollView, useWindowDimensions, ActivityIndicator, FlatList, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, View, Text, ScrollView, useWindowDimensions, ActivityIndicator, FlatList, TouchableOpacity, Modal, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
@@ -60,6 +60,9 @@ export default function DetailsScreen({ route, navigation }) {
     const { theme } = useTheme();
     const { height } = useWindowDimensions();
 
+    const [isImageModalVisible, setIsImageModalVisible] = useState(false);
+    const [expandedRelations, setExpandedRelations] = useState({});
+
     const { data: fullItem, isLoading } = useQuery({
         queryKey: ['mediaDetails', mediaType, mediaId],
         queryFn: () => mediaService.getMediaById(mediaType, mediaId),
@@ -92,20 +95,41 @@ export default function DetailsScreen({ route, navigation }) {
     const durationText = displayItem?.duration || 'Unknown';
     const ratingText = displayItem?.rating || 'None';
 
-    // --- Relations Engine Consolidation ---
+    // --- Smart Lazy-Loaded Relations Engine ---
     const relations = displayItem?.relations || [];
-    const flatRelations = [];
+    const immediateRelations = [];
+    const groupedRelations = {};
 
     relations.forEach(relNode => {
-        if (relNode.entry) {
+        const relationType = relNode.relation;
+        const lowerType = relationType.toLowerCase();
+
+        if (!relNode.entry) return;
+
+        if (lowerType === 'prequel' || lowerType === 'sequel') {
             relNode.entry.forEach(entry => {
-                // Securely append and filter undefined mappings resolving strict objects dynamically
                 if (entry && entry.mal_id) {
-                    flatRelations.push({ ...entry, relationType: relNode.relation });
+                    immediateRelations.push({ ...entry, relationType });
+                }
+            });
+        } else {
+            relNode.entry.forEach(entry => {
+                if (entry && entry.mal_id) {
+                    if (!groupedRelations[relationType]) {
+                        groupedRelations[relationType] = [];
+                    }
+                    groupedRelations[relationType].push({ ...entry, relationType });
                 }
             });
         }
     });
+
+    const handleExpandRelation = (relType) => {
+        setExpandedRelations(prev => ({
+            ...prev,
+            [relType]: (prev[relType] || 0) + 3
+        }));
+    };
 
     const { data: characters } = useQuery({
         queryKey: ['mediaCharacters', mediaType, mediaId],
@@ -180,38 +204,24 @@ export default function DetailsScreen({ route, navigation }) {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            {/* Dual-Layer Stack Background */}
-            <View style={StyleSheet.absoluteFillObject}>
-                {/* Layer 1: Ambient Blur */}
-                <Image
-                    source={{ uri: displayItem.images?.jpg?.large_image_url || displayItem.images?.jpg?.image_url }}
-                    style={StyleSheet.absoluteFillObject}
-                    contentFit="cover"
-                    blurRadius={40}
-                    transition={200}
-                    cachePolicy="memory-disk"
-                />
-
-                {/* Dark Overlay (Prevents text bleeding while protecting the Crisp focal poster above) */}
-                <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.6)' }]} />
-
-                {/* Layer 2: The Crisp Foreground Poster */}
-                <Image
-                    source={{ uri: displayItem.images?.jpg?.large_image_url || displayItem.images?.jpg?.image_url }}
-                    style={{ width: '100%', height: height * 0.55, position: 'absolute', top: 0 }}
-                    contentFit="contain"
-                    transition={200}
-                    cachePolicy="memory-disk"
-                />
-            </View>
+            {/* Single App Background Image (Restored) */}
+            <Image
+                source={{ uri: displayItem.images?.jpg?.large_image_url || displayItem.images?.jpg?.image_url }}
+                style={StyleSheet.absoluteFillObject}
+                contentFit="cover"
+                transition={200}
+                cachePolicy="memory-disk"
+            />
 
             {/* Scrollable Overlay Layer */}
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ flexGrow: 1 }}
             >
-                {/* Dynamic Spacer: Pushes content down so ONLY the Title and Meta row are visible initially like a bottom sheet */}
-                <View style={{ height: height - 180 }} />
+                {/* Dynamic Spacer bound to Image Modal Toggle */}
+                <Pressable onPress={() => setIsImageModalVisible(true)}>
+                    <View style={{ height: height - 180 }} />
+                </Pressable>
 
                 {/* Block 1: The Hero Intro */}
                 <View style={[styles.island, styles.firstIsland, { backgroundColor: theme.background }]}>
@@ -285,24 +295,72 @@ export default function DetailsScreen({ route, navigation }) {
                     </View>
                 )}
 
-                {/* Block 4: Relations Engine */}
-                {flatRelations.length > 0 && (
+                {/* Block 4: Smart Relations Engine */}
+                {(immediateRelations.length > 0 || Object.keys(groupedRelations).length > 0) && (
                     <View style={[styles.island, { backgroundColor: theme.background }]}>
                         <Text style={[styles.sectionHeader, { color: theme.text }]}>Related Media</Text>
-                        <FlatList
-                            data={flatRelations}
-                            renderItem={({ item }) => (
-                                <HydratedRelationCard
-                                    relationNode={item}
-                                    theme={theme}
-                                    navigation={navigation}
-                                />
-                            )}
-                            keyExtractor={(item, index) => `${item.mal_id}-${index}`}
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.horizontalList}
-                        />
+
+                        {/* Immediate Relations (Prequels/Sequels) */}
+                        {immediateRelations.length > 0 && (
+                            <FlatList
+                                data={immediateRelations}
+                                renderItem={({ item }) => (
+                                    <HydratedRelationCard
+                                        relationNode={item}
+                                        theme={theme}
+                                        navigation={navigation}
+                                    />
+                                )}
+                                keyExtractor={(item, index) => `${item.mal_id}-${index}`}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={[styles.horizontalList, { marginBottom: Object.keys(groupedRelations).length > 0 ? 20 : 0 }]}
+                            />
+                        )}
+
+                        {/* Grouped Accordion Relations */}
+                        {Object.keys(groupedRelations).map(type => {
+                            const groupList = groupedRelations[type];
+                            const visibleCount = expandedRelations[type] || 0;
+                            const visibleItems = groupList.slice(0, visibleCount);
+                            const hasMore = visibleCount < groupList.length;
+
+                            return (
+                                <View key={type} style={styles.relationGroupContainer}>
+                                    <View style={styles.relationGroupHeaderRow}>
+                                        <Text style={[styles.relationGroupTitle, { color: theme.text }]}>{type}</Text>
+                                        {visibleCount === 0 && (
+                                            <TouchableOpacity onPress={() => handleExpandRelation(type)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                                                <Text style={[styles.expandText, { color: theme.accent }]}>Expand / View All</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+
+                                    {visibleCount > 0 && (
+                                        <FlatList
+                                            data={visibleItems}
+                                            renderItem={({ item }) => (
+                                                <HydratedRelationCard
+                                                    relationNode={item}
+                                                    theme={theme}
+                                                    navigation={navigation}
+                                                />
+                                            )}
+                                            keyExtractor={(item, index) => `${item.mal_id}-${index}`}
+                                            horizontal
+                                            showsHorizontalScrollIndicator={false}
+                                            contentContainerStyle={styles.horizontalList}
+                                        />
+                                    )}
+
+                                    {visibleCount > 0 && hasMore && (
+                                        <TouchableOpacity style={styles.loadMoreButton} onPress={() => handleExpandRelation(type)}>
+                                            <Text style={[styles.loadMoreText, { color: theme.accent }]}>Load 3 More</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            );
+                        })}
                     </View>
                 )}
 
@@ -352,6 +410,23 @@ export default function DetailsScreen({ route, navigation }) {
                     </View>
                 </View>
             </ScrollView>
+
+            {/* Full-Screen Image Viewer Modal */}
+            <Modal visible={isImageModalVisible} transparent={true} animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <SafeAreaView style={styles.modalSafe}>
+                        <TouchableOpacity style={styles.modalCloseButton} onPress={() => setIsImageModalVisible(false)} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
+                            <Text style={styles.modalCloseText}>Close</Text>
+                        </TouchableOpacity>
+                        <Image
+                            source={{ uri: displayItem.images?.jpg?.large_image_url || displayItem.images?.jpg?.image_url }}
+                            style={styles.modalImage}
+                            contentFit="contain"
+                            transition={200}
+                        />
+                    </SafeAreaView>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -478,6 +553,59 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: 'bold',
         textTransform: 'uppercase',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: '#000',
+    },
+    modalSafe: {
+        flex: 1,
+    },
+    modalCloseButton: {
+        alignSelf: 'flex-end',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        zIndex: 10,
+    },
+    modalCloseText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    modalImage: {
+        flex: 1,
+        width: '100%',
+    },
+    relationGroupContainer: {
+        marginTop: 5,
+        marginBottom: 15,
+    },
+    relationGroupHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+        paddingHorizontal: 5,
+    },
+    relationGroupTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        opacity: 0.9,
+    },
+    expandText: {
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    loadMoreButton: {
+        alignSelf: 'flex-start',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        marginTop: 5,
+        marginLeft: 5,
+    },
+    loadMoreText: {
+        fontWeight: 'bold',
+        fontSize: 14,
     },
     statsGrid: {
         marginTop: 25,
