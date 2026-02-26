@@ -333,8 +333,8 @@ export default function DetailsScreen({ route, navigation }) {
                         style={[styles.libraryButton, { backgroundColor: theme.accent }]}
                         onPress={handleAddPress}
                     >
-                        <Ionicons name={currentStatus ? "checkmark-circle" : "add-circle-outline"} size={20} color={theme.background} style={{ marginRight: 8 }} />
-                        <Text style={[styles.libraryButtonText, { color: theme.background }]}>
+                        <Ionicons name={currentStatus ? "checkmark-circle" : "add-circle-outline"} size={20} color="#fff" style={{ marginRight: 8 }} />
+                        <Text style={[styles.libraryButtonText, { color: '#fff' }]}>
                             {currentStatus ? 'Update Status' : '+ Add to Library'}
                         </Text>
                     </TouchableOpacity>
@@ -806,5 +806,94 @@ const styles = StyleSheet.create({
         padding: 15,
         borderRadius: 12,
         justifyContent: 'flex-start',
+    },
+    libraryButton: {
+        marginTop: 15,
+        paddingVertical: 12,
+        borderRadius: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        elevation: 2,
+    },
+    libraryButtonText: {
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    modalOverlay: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        width: '85%',
+        borderRadius: 15,
+        padding: 20,
+        alignItems: 'center',
+        elevation: 5,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 20,
+    },
+    modalOption: {
+        width: '100%',
+        padding: 15,
+        borderRadius: 8,
+        marginBottom: 10,
+        alignItems: 'center',
+    },
+    optionText: {
+        fontWeight: '600',
+    },
+    progressContainer: {
+        width: '100%',
+        alignItems: 'center',
+        marginBottom: 15,
+    },
+    inputLabel: {
+        marginBottom: 15,
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    counterRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 20,
+        gap: 15,
+    },
+    counterBtn: {
+        padding: 10,
+        borderRadius: 8,
+    },
+    input: {
+        borderWidth: 1,
+        borderRadius: 8,
+        width: 60,
+        padding: 10,
+        textAlign: 'center',
+        fontSize: 20,
+        fontWeight: 'bold',
+    },
+    saveButton: {
+        paddingVertical: 12,
+        paddingHorizontal: 30,
+        borderRadius: 25,
+        width: '100%',
+        alignItems: 'center',
+    },
+    saveButtonText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 16,
+    },
+    cancelButton: {
+        marginTop: 10,
+        padding: 10,
+    },
+    cancelText: {
+        fontWeight: 'bold',
     },
 });
