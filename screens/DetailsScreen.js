@@ -25,6 +25,9 @@ function HydratedRelationCard({ relationNode, theme, navigation }) {
         );
     }
 
+    // Abort rendering completely if the fetched entity was blocked (e.g. Kids demographic filter applied in api.js)
+    if (!detailData) return null;
+
     // Utilize fetched data, falling back to basic generic paths flawlessly if Jikan fails payload isolation.
     const imageUrl = detailData?.images?.jpg?.large_image_url || detailData?.images?.jpg?.image_url || 'https://cdn.myanimelist.net/images/questionmark_50.gif';
     const displayTitle = detailData?.title_english || detailData?.title || name;

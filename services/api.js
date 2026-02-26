@@ -172,8 +172,10 @@ const fetchWithLock = async (cacheKey, lockKey, url, delayMs = 500) => {
 export const fetchGenres = async (type = 'anime') => {
     const lockKey = `genres_${type}`;
     const data = await fetchWithLock(cache.genres[type], lockKey, `${BASE_URL}/genres/${type}`);
-    if (data.length > 0) cache.genres[type] = data;
-    return data;
+    // Aggressively strip Kids genre (mal_id 15 / explicit Kids title) globally
+    const filteredGenres = data.filter(g => g.mal_id !== 15 && g.name?.toLowerCase() !== 'kids');
+    if (filteredGenres.length > 0) cache.genres[type] = filteredGenres;
+    return filteredGenres;
 };
 
 export const fetchProducers = async (type = 'anime') => {
@@ -205,7 +207,13 @@ export const fetchMediaById = async (type = 'anime', id) => {
         try {
             const key = `fetchMediaById_${type}_${id}`;
             const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}/${id}/full`));
-            return response.data.data;
+            const data = response.data.data;
+            // Strict ID-level validation shutting down direct links to Kids content
+            if (data && filterKidsContent([data]).length === 0) {
+                console.log(`[Sanitizer] Blocked direct fetch to Kids demographic media: ${id}`);
+                return null;
+            }
+            return data;
         } catch (error) {
             console.error('Fetch By ID Error:', error.message);
             return null;
