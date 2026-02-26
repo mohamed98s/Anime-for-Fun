@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, useWindowDimensions, ActivityIndicator, FlatList, TouchableOpacity, Modal, Pressable } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, useWindowDimensions, ActivityIndicator, FlatList, TouchableOpacity, Modal, Pressable, TextInput, TouchableWithoutFeedback, Keyboard, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useQuery } from '@tanstack/react-query';
 import { mediaService } from '../services/mediaService';
+import { useLibrary } from '../context/LibraryContext';
+import { Ionicons } from '@expo/vector-icons';
 
 function HydratedRelationCard({ relationNode, theme, navigation }) {
     const { mal_id, type, relationType, name } = relationNode;
@@ -62,9 +64,15 @@ export default function DetailsScreen({ route, navigation }) {
 
     const { theme } = useTheme();
     const { height } = useWindowDimensions();
+    const { getAnimeStatus, addToLibrary } = useLibrary();
 
     const [isImageModalVisible, setIsImageModalVisible] = useState(false);
     const [expandedRelations, setExpandedRelations] = useState({});
+
+    // Library Integration State
+    const [libraryModalVisible, setLibraryModalVisible] = useState(false);
+    const [progressInput, setProgressInput] = useState('');
+    const [showProgressInput, setShowProgressInput] = useState(false);
 
     const { data: fullItem, isLoading } = useQuery({
         queryKey: ['mediaDetails', mediaType, mediaId],
@@ -97,6 +105,61 @@ export default function DetailsScreen({ route, navigation }) {
     const sourceText = displayItem?.source || 'Unknown';
     const durationText = displayItem?.duration || 'Unknown';
     const ratingText = displayItem?.rating || 'None';
+
+    // --- Library Integration Logic ---
+    const currentStatus = getAnimeStatus ? getAnimeStatus(mediaId, mediaType) : null;
+    const totalItems = mediaType === 'anime' ? displayItem?.episodes : displayItem?.chapters;
+    const isNotAired = displayItem?.status === 'Not yet aired';
+    const isAiring = displayItem?.status === 'Currently Airing' || displayItem?.status === 'Publishing';
+
+    const activeLabel = mediaType === 'anime' ? 'Watching' : 'Reading';
+    const planLabel = mediaType === 'anime' ? 'Plan to Watch' : 'Plan to Read';
+    const unitLabel = mediaType === 'anime' ? 'Episode' : 'Chapter';
+
+    const handleAddPress = () => {
+        setLibraryModalVisible(true);
+        setShowProgressInput(false);
+        setProgressInput('');
+    };
+
+    const handleStatusSelect = (status) => {
+        if (status === activeLabel) {
+            if (mediaType === 'anime' && isNotAired && !totalItems) {
+                Alert.alert('Cannot Add', 'This anime has not aired yet.');
+                return;
+            }
+            setShowProgressInput(true);
+            setProgressInput('1');
+        } else {
+            if (addToLibrary) addToLibrary(displayItem, status);
+            setLibraryModalVisible(false);
+        }
+    };
+
+    const validateProgress = (val) => {
+        const num = parseInt(val, 10);
+        if (isNaN(num)) return 0;
+        if (num < 0) return 0;
+        if (totalItems && num > totalItems) return totalItems;
+        if (isAiring && !totalItems && num > 5000) return 5000;
+        return num;
+    };
+
+    const handleIncrement = () => {
+        const current = parseInt(progressInput, 10) || 0;
+        setProgressInput(validateProgress(current + 1).toString());
+    };
+
+    const handleDecrement = () => {
+        const current = parseInt(progressInput, 10) || 0;
+        setProgressInput(validateProgress(current - 1).toString());
+    };
+
+    const handleActiveSubmit = () => {
+        const prog = validateProgress(progressInput);
+        if (addToLibrary) addToLibrary(displayItem, activeLabel, prog);
+        setLibraryModalVisible(false);
+    };
 
     // --- Smart Lazy-Loaded Relations Engine ---
     const relations = displayItem?.relations || [];
@@ -264,6 +327,17 @@ export default function DetailsScreen({ route, navigation }) {
                             ))}
                         </View>
                     )}
+
+                    {/* Action Buttons */}
+                    <TouchableOpacity
+                        style={[styles.libraryButton, { backgroundColor: theme.accent }]}
+                        onPress={handleAddPress}
+                    >
+                        <Ionicons name={currentStatus ? "checkmark-circle" : "add-circle-outline"} size={20} color={theme.background} style={{ marginRight: 8 }} />
+                        <Text style={[styles.libraryButtonText, { color: theme.background }]}>
+                            {currentStatus ? 'Update Status' : '+ Add to Library'}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Block 2: Synopsis & Background */}
@@ -414,6 +488,71 @@ export default function DetailsScreen({ route, navigation }) {
                 </View>
             </ScrollView>
 
+            {/* --- Library Management Modal --- */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={libraryModalVisible}
+                onRequestClose={() => setLibraryModalVisible(false)}
+            >
+                <TouchableWithoutFeedback onPress={() => setLibraryModalVisible(false)}>
+                    <View style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}>
+                        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                            <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+                                <Text style={[styles.modalTitle, { color: theme.text }]}>Add to Library</Text>
+
+                                {!showProgressInput ? (
+                                    <>
+                                        <TouchableOpacity style={[styles.modalOption, { backgroundColor: theme.background }]} onPress={() => handleStatusSelect(activeLabel)}>
+                                            <Text style={[styles.optionText, { color: theme.text }]}>{activeLabel}</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={[styles.modalOption, { backgroundColor: theme.background }]} onPress={() => handleStatusSelect('Completed')}>
+                                            <Text style={[styles.optionText, { color: theme.text }]}>Completed</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={[styles.modalOption, { backgroundColor: theme.background }]} onPress={() => handleStatusSelect(planLabel)}>
+                                            <Text style={[styles.optionText, { color: theme.text }]}>{planLabel}</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                ) : (
+                                    <View style={styles.progressContainer}>
+                                        <Text style={[styles.inputLabel, { color: theme.text }]}>
+                                            {unitLabel} Progress: {totalItems ? `/ ${totalItems}` : ''}
+                                        </Text>
+
+                                        <View style={styles.counterRow}>
+                                            <TouchableOpacity style={[styles.counterBtn, { backgroundColor: theme.background }]} onPress={handleDecrement}>
+                                                <Ionicons name="remove" size={24} color={theme.accent} />
+                                            </TouchableOpacity>
+
+                                            <TextInput
+                                                style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                                                keyboardType="numeric"
+                                                value={progressInput}
+                                                onChangeText={(txt) => setProgressInput(txt)}
+                                                onEndEditing={() => setProgressInput(validateProgress(progressInput).toString())}
+                                                placeholderTextColor={theme.subText}
+                                            />
+
+                                            <TouchableOpacity style={[styles.counterBtn, { backgroundColor: theme.background }]} onPress={handleIncrement}>
+                                                <Ionicons name="add" size={24} color={theme.accent} />
+                                            </TouchableOpacity>
+                                        </View>
+
+                                        <TouchableOpacity style={[styles.saveButton, { backgroundColor: theme.accent }]} onPress={handleActiveSubmit}>
+                                            <Text style={styles.saveButtonText}>Save Progress</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+
+                                <TouchableOpacity style={styles.cancelButton} onPress={() => setLibraryModalVisible(false)}>
+                                    <Text style={[styles.cancelText, { color: theme.subText }]}>Cancel</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </TouchableWithoutFeedback>
+                    </View>
+                </TouchableWithoutFeedback>
+            </Modal>
+
             {/* Full-Screen Image Viewer Modal */}
             <Modal visible={isImageModalVisible} transparent={true} animationType="fade">
                 <View style={styles.modalOverlay}>
@@ -557,7 +696,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         textTransform: 'uppercase',
     },
-    modalOverlay: {
+    imageViewerModalOverlay: {
         flex: 1,
         backgroundColor: '#000',
     },
