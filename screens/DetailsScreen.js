@@ -6,6 +6,52 @@ import { useTheme } from '../context/ThemeContext';
 import { useQuery } from '@tanstack/react-query';
 import { mediaService } from '../services/mediaService';
 
+function HydratedRelationCard({ relationNode, theme, navigation }) {
+    const { mal_id, type, relationType, name } = relationNode;
+
+    // Queue queries safely by mal_id resolving uncropped posters dynamically.
+    const { data: detailData, isLoading } = useQuery({
+        queryKey: ['mediaDetails', type, mal_id],
+        queryFn: () => mediaService.getMediaById(type, mal_id),
+        staleTime: 1000 * 60 * 30,
+        enabled: !!mal_id,
+    });
+
+    if (isLoading) {
+        return (
+            <View style={[styles.recCard, { justifyContent: 'center', alignItems: 'center', backgroundColor: theme.card, borderRadius: 12, height: 170 }]}>
+                <ActivityIndicator size="small" color={theme.accent} />
+            </View>
+        );
+    }
+
+    // Utilize fetched data, falling back to basic generic paths flawlessly if Jikan fails payload isolation.
+    const imageUrl = detailData?.images?.jpg?.large_image_url || detailData?.images?.jpg?.image_url || 'https://cdn.myanimelist.net/images/questionmark_50.gif';
+    const displayTitle = detailData?.title_english || detailData?.title || name;
+
+    return (
+        <TouchableOpacity
+            style={styles.recCard}
+            onPress={() => navigation.push('Details', { id: mal_id, type: type || 'anime' })}
+        >
+            <View style={{ position: 'relative' }}>
+                <Image
+                    source={{ uri: imageUrl }}
+                    style={styles.recImage}
+                    contentFit="cover"
+                    transition={200}
+                />
+                <View style={[styles.relationBadge, { backgroundColor: theme.accent }]}>
+                    <Text style={styles.relationBadgeText}>{relationType}</Text>
+                </View>
+            </View>
+            <Text style={[styles.recTitle, { color: theme.text }]} numberOfLines={2}>
+                {displayTitle}
+            </Text>
+        </TouchableOpacity>
+    );
+}
+
 export default function DetailsScreen({ route, navigation }) {
     const { id, type, item } = route.params || {};
     const mediaId = id || item?.mal_id;
@@ -46,20 +92,17 @@ export default function DetailsScreen({ route, navigation }) {
     const durationText = displayItem?.duration || 'Unknown';
     const ratingText = displayItem?.rating || 'None';
 
-    // --- Relations Engine (Prequel, Sequel, Spin-offs) ---
+    // --- Relations Engine Consolidation ---
     const relations = displayItem?.relations || [];
-    const prequelNode = relations.find(r => r.relation.toLowerCase() === 'prequel');
-    const sequelNode = relations.find(r => r.relation.toLowerCase() === 'sequel');
-    const otherRelations = relations.filter(r => r.relation.toLowerCase() !== 'prequel' && r.relation.toLowerCase() !== 'sequel');
+    const flatRelations = [];
 
-    const prequelEntry = prequelNode?.entry?.[0] || null;
-    const sequelEntry = sequelNode?.entry?.[0] || null;
-
-    const flatOtherRelations = [];
-    otherRelations.forEach(relNode => {
+    relations.forEach(relNode => {
         if (relNode.entry) {
             relNode.entry.forEach(entry => {
-                flatOtherRelations.push({ ...entry, relationType: relNode.relation });
+                // Securely append and filter undefined mappings resolving strict objects dynamically
+                if (entry && entry.mal_id) {
+                    flatRelations.push({ ...entry, relationType: relNode.relation });
+                }
             });
         }
     });
@@ -137,14 +180,30 @@ export default function DetailsScreen({ route, navigation }) {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            {/* Fixed Background Image */}
-            <Image
-                source={{ uri: displayItem.images?.jpg?.large_image_url || displayItem.images?.jpg?.image_url }}
-                style={StyleSheet.absoluteFillObject}
-                contentFit="cover"
-                transition={200}
-                cachePolicy="memory-disk"
-            />
+            {/* Dual-Layer Stack Background */}
+            <View style={StyleSheet.absoluteFillObject}>
+                {/* Layer 1: Ambient Blur */}
+                <Image
+                    source={{ uri: displayItem.images?.jpg?.large_image_url || displayItem.images?.jpg?.image_url }}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="cover"
+                    blurRadius={40}
+                    transition={200}
+                    cachePolicy="memory-disk"
+                />
+
+                {/* Dark Overlay (Prevents text bleeding while protecting the Crisp focal poster above) */}
+                <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.6)' }]} />
+
+                {/* Layer 2: The Crisp Foreground Poster */}
+                <Image
+                    source={{ uri: displayItem.images?.jpg?.large_image_url || displayItem.images?.jpg?.image_url }}
+                    style={{ width: '100%', height: height * 0.55, position: 'absolute', top: 0 }}
+                    contentFit="contain"
+                    transition={200}
+                    cachePolicy="memory-disk"
+                />
+            </View>
 
             {/* Scrollable Overlay Layer */}
             <ScrollView
@@ -227,55 +286,23 @@ export default function DetailsScreen({ route, navigation }) {
                 )}
 
                 {/* Block 4: Relations Engine */}
-                {relations.length > 0 && (
+                {flatRelations.length > 0 && (
                     <View style={[styles.island, { backgroundColor: theme.background }]}>
                         <Text style={[styles.sectionHeader, { color: theme.text }]}>Related Media</Text>
-
-                        {/* Prequel / Sequel Split Row */}
-                        {(prequelEntry || sequelEntry) && (
-                            <View style={styles.prequelSequelContainer}>
-                                {prequelEntry ? (
-                                    <TouchableOpacity
-                                        style={[styles.relationCard, { backgroundColor: theme.border }]}
-                                        onPress={() => navigation.push('Details', { id: prequelEntry.mal_id, type: prequelEntry.type })}
-                                    >
-                                        <Text style={[styles.relationType, { color: theme.text }]}>Prequel</Text>
-                                        <Text style={[styles.relationTitle, { color: theme.text }]} numberOfLines={2}>{prequelEntry.name}</Text>
-                                    </TouchableOpacity>
-                                ) : <View style={styles.relationCardPlaceholder} />}
-
-                                {sequelEntry ? (
-                                    <TouchableOpacity
-                                        style={[styles.relationCard, { backgroundColor: theme.border }]}
-                                        onPress={() => navigation.push('Details', { id: sequelEntry.mal_id, type: sequelEntry.type })}
-                                    >
-                                        <Text style={[styles.relationType, { color: theme.text }]}>Sequel</Text>
-                                        <Text style={[styles.relationTitle, { color: theme.text }]} numberOfLines={2}>{sequelEntry.name}</Text>
-                                    </TouchableOpacity>
-                                ) : <View style={styles.relationCardPlaceholder} />}
-                            </View>
-                        )}
-
-                        {/* Other Relations Horizontal Glide */}
-                        {flatOtherRelations.length > 0 && (
-                            <FlatList
-                                data={flatOtherRelations}
-                                renderItem={({ item }) => (
-                                    <TouchableOpacity
-                                        style={[styles.glideCard, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}
-                                        onPress={() => navigation.push('Details', { id: item.mal_id, type: item.type })}
-                                    >
-                                        <Text style={[styles.relationType, { color: theme.subText }]}>{item.relationType}</Text>
-                                        <Text style={[styles.relationTitle, { color: theme.text }]} numberOfLines={3}>{item.name}</Text>
-                                        <Text style={{ color: theme.subText, fontSize: 10, marginTop: 4, fontStyle: 'italic', position: 'absolute', bottom: 10, right: 10 }}>{item.type.toUpperCase()}</Text>
-                                    </TouchableOpacity>
-                                )}
-                                keyExtractor={(item, index) => `${item.mal_id}-${index}`}
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={{ paddingVertical: 5, gap: 15 }}
-                            />
-                        )}
+                        <FlatList
+                            data={flatRelations}
+                            renderItem={({ item }) => (
+                                <HydratedRelationCard
+                                    relationNode={item}
+                                    theme={theme}
+                                    navigation={navigation}
+                                />
+                            )}
+                            keyExtractor={(item, index) => `${item.mal_id}-${index}`}
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.horizontalList}
+                        />
                     </View>
                 )}
 
@@ -437,6 +464,20 @@ const styles = StyleSheet.create({
     recTitle: {
         fontSize: 14,
         fontWeight: 'bold',
+    },
+    relationBadge: {
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+    },
+    relationBadgeText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
     },
     statsGrid: {
         marginTop: 25,
