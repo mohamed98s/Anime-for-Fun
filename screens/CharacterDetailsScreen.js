@@ -6,6 +6,16 @@ import { useQuery } from '@tanstack/react-query';
 import { mediaService } from '../services/mediaService';
 import { useTheme } from '../context/ThemeContext';
 
+const decodeHTMLEntities = (text) => {
+    if (!text) return '';
+    return text
+        .replace(/&gt;/g, '>')
+        .replace(/&lt;/g, '<')
+        .replace(/&quot;/g, '"')
+        .replace(/&#039;/g, "'")
+        .replace(/&amp;/g, '&');
+};
+
 export default function CharacterDetailsScreen({ route, navigation }) {
     const { id } = route.params;
     const { theme } = useTheme();
@@ -34,7 +44,9 @@ export default function CharacterDetailsScreen({ route, navigation }) {
     }
 
     const imageUrl = characterData.images?.jpg?.image_url || 'https://cdn.myanimelist.net/images/questionmark_50.gif';
-    const parsedAbout = characterData.about ? characterData.about.split('\n').filter(line => line.trim().length > 0) : ['No biography available.'];
+    const parsedAbout = characterData.about
+        ? decodeHTMLEntities(characterData.about).split('\n').filter(line => line.trim().length > 0)
+        : ['No biography available.'];
 
     // Filter Voices for Japanese/English natively, eliminating nulls
     const filteredVoices = (characterData.voices || []).filter(v => {
@@ -64,39 +76,35 @@ export default function CharacterDetailsScreen({ route, navigation }) {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <Image
-                source={{ uri: imageUrl }}
-                style={StyleSheet.absoluteFillObject}
-                contentFit="cover"
-                transition={200}
-                cachePolicy="memory-disk"
-            />
-
             <ScrollView
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ flexGrow: 1 }}
+                contentContainerStyle={{ flexGrow: 1, paddingTop: 20 }}
             >
-                <View style={{ height: height * 0.4 }} />
+                {/* Passport Header Block */}
+                <View style={[styles.passportContainer, { backgroundColor: theme.background }]}>
+                    <Image
+                        source={{ uri: imageUrl }}
+                        style={styles.portraitImage}
+                        contentFit="cover"
+                        transition={200}
+                        cachePolicy="memory-disk"
+                    />
 
-                <View style={[styles.island, { backgroundColor: theme.background }]}>
-                    <View style={styles.titleRow}>
-                        <Text style={[styles.title, { color: theme.text }]} numberOfLines={2}>
+                    <View style={styles.infoContainer}>
+                        <Text style={[styles.title, { color: theme.text }]} numberOfLines={3}>
                             {characterData.name}
                         </Text>
-                        <View style={[styles.favoritesBadge, { backgroundColor: theme.accent }]}>
-                            <Text style={[styles.scoreText, { color: '#fff' }]}>♥ {characterData.favorites || 0}</Text>
-                        </View>
+
+                        {characterData.name_kanji && (
+                            <Text style={[styles.kanjiSubtitle, { color: theme.subText }]}>{characterData.name_kanji}</Text>
+                        )}
+
+                        {characterData.nicknames && characterData.nicknames.length > 0 && (
+                            <Text style={[styles.nicknames, { color: theme.subText }]}>
+                                "{characterData.nicknames.join('", "')}"
+                            </Text>
+                        )}
                     </View>
-
-                    {characterData.name_kanji && (
-                        <Text style={[styles.kanjiSubtitle, { color: theme.subText }]}>{characterData.name_kanji}</Text>
-                    )}
-
-                    {characterData.nicknames && characterData.nicknames.length > 0 && (
-                        <Text style={[styles.kanjiSubtitle, { color: theme.subText, fontStyle: 'italic', marginTop: 4 }]}>
-                            "{characterData.nicknames.join('", "')}"
-                        </Text>
-                    )}
                 </View>
 
                 {/* Biography Block */}
@@ -134,39 +142,41 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
-    island: {
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        padding: 20,
-        paddingBottom: 25,
-        marginTop: -20, // Overlaps the native image/island above it fluidly
-    },
-    titleRow: {
+    passportContainer: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: 5,
+        paddingHorizontal: 20,
+        marginBottom: 10,
+    },
+    portraitImage: {
+        width: 120,
+        height: 180,
+        borderRadius: 12,
+        backgroundColor: '#444',
+    },
+    infoContainer: {
+        flex: 1,
+        marginLeft: 15,
+        justifyContent: 'center',
     },
     title: {
         fontSize: 24,
         fontWeight: '900',
-        flex: 1,
-        marginRight: 10,
+        marginBottom: 5,
     },
     kanjiSubtitle: {
         fontSize: 16,
         fontWeight: 'bold',
+        marginBottom: 4,
     },
-    favoritesBadge: {
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    scoreText: {
-        fontWeight: 'bold',
+    nicknames: {
         fontSize: 14,
+        fontStyle: 'italic',
+        marginTop: 4,
+    },
+    island: {
+        paddingHorizontal: 20,
+        paddingBottom: 25,
+        marginTop: 10,
     },
     sectionHeader: {
         fontSize: 18,
