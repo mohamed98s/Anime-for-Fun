@@ -315,23 +315,23 @@ export const fetchParentalGuide = async (title) => {
                 const searchRes = await axios.get(`https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(sanitizedTitle)}&limit=1`);
 
                 if (!searchRes.data || !searchRes.data.titles || searchRes.data.titles.length === 0) {
-                    return { data: { parentalguide: [] } }; // Fallback
+                    return { data: { parentsGuide: [] } }; // Fallback
                 }
 
                 const imdbId = searchRes.data.titles[0].id;
-                if (!imdbId) return { data: { parentalguide: [] } };
+                if (!imdbId) return { data: { parentsGuide: [] } };
 
                 try {
-                    return await axios.get(`https://api.imdbapi.dev/titles/${imdbId}/parentalguide`);
+                    return await axios.get(`https://api.imdbapi.dev/titles/${imdbId}/parentsGuide`);
                 } catch (err) {
                     // Gracefully intercept 404 Missing Guide Data natively
                     console.log(`[ParentalGuide] No guide exists for ${imdbId} on IMDb servers.`);
-                    return { data: { parentalguide: [] } };
+                    return { data: { parentsGuide: [] } };
                 }
             });
 
-            // Map the generic data array robustly capturing whichever layout responds
-            return response.data?.parentalguide || response.data?.advisories || response.data?.content_ratings || [];
+            // Map the exact schema array robustly
+            return response.data?.parentsGuide || [];
         } catch (error) {
             console.error('Fetch Parental Guide Error:', error.message);
             return [];

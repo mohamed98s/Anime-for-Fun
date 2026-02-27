@@ -60,16 +60,29 @@ export default function ParentalGuideModal({ title }) {
                                         </Text>
                                     </View>
                                 ) : (
-                                    guideData.map((item, index) => (
-                                        <View key={index} style={styles.guideRow}>
-                                            <Text style={[styles.guideCategory, { color: theme.text }]}>
-                                                {item.category || item.type || 'Advisory'}
-                                            </Text>
-                                            <Text style={[styles.guideSeverity, { color: theme.subText }]}>
-                                                {item.severity || item.rating || item.description || ''}
-                                            </Text>
-                                        </View>
-                                    ))
+                                    guideData.map((item, index) => {
+                                        // Nicely format the Enum category: "SEXUAL_CONTENT" -> "Sexual Content"
+                                        const formattedCategory = (item.category || 'Advisory')
+                                            .replace(/_/g, ' ')
+                                            .toLowerCase()
+                                            .replace(/\b\w/g, c => c.toUpperCase());
+
+                                        // Safely extract severityLevel from the breakdowns array cleanly
+                                        const severityInfo = item.severityBreakdowns && item.severityBreakdowns.length > 0
+                                            ? item.severityBreakdowns[0].severityLevel
+                                            : 'Unrated / None';
+
+                                        return (
+                                            <View key={index} style={styles.guideRow}>
+                                                <Text style={[styles.guideCategory, { color: theme.text }]}>
+                                                    {formattedCategory}
+                                                </Text>
+                                                <Text style={[styles.guideSeverity, { color: theme.subText }]}>
+                                                    Severity: {severityInfo}
+                                                </Text>
+                                            </View>
+                                        );
+                                    })
                                 )}
                             </ScrollView>
                         )}
