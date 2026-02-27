@@ -14,19 +14,6 @@ export async function fetchCached(key, fetchFn) {
     return result;
 }
 
-// --- Global Content Sanitizer ---
-// Explicitly purge "Kids" demographic (MAL ID: 15) from all list payloads to strictly maintain target audience indexing.
-const filterKidsContent = (dataArray) => {
-    if (!Array.isArray(dataArray)) return dataArray;
-    return dataArray.filter(item => {
-        const hasKidsTag = (arr) => arr?.some(tag => tag.mal_id === 15 || tag.name?.toLowerCase() === 'kids');
-        if (hasKidsTag(item.genres) || hasKidsTag(item.themes) || hasKidsTag(item.demographics)) {
-            return false;
-        }
-        return true;
-    });
-};
-
 const BASE_URL = 'https://api.jikan.moe/v4';
 
 // --- Queue system and Request Locks to prevent 429s ---
@@ -51,8 +38,8 @@ export const fetchMediaPage = async (type = 'anime', page = 1) => {
     return enqueueRequest(async () => {
         try {
             const key = `fetchMediaPage_${type}_${page}`;
-            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}?page=${page}&limit=20&order_by=popularity&sfw=true&genres_exclude=15`));
-            return filterKidsContent(response.data.data);
+            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}?page=${page}&limit=20&order_by=popularity`));
+            return response.data.data;
         } catch (error) {
             console.error('API Fetch Error:', error);
             return [];
@@ -100,21 +87,14 @@ export const fetchMediaBatch = async (type = 'anime', page = 1, options = {}) =>
                 }
             }
 
-            // Append safe parameters natively supported by generic query filters
-            if (options.endpoint !== 'top' && options.endpoint !== 'season') {
-                params.append('sfw', 'true');
-                params.append('genres_exclude', '15');
-            }
-
             const fullUrl = `${url}?${params.toString()}`;
 
             const key = `fetchMediaBatch_${type}_${page}_${params.toString()}`;
             const response = await fetchCached(key, () => axios.get(fullUrl));
 
             return {
-                data: filterKidsContent(response.data.data || []),
+                data: response.data.data || [],
                 hasNextPage: response.data.pagination?.has_next_page || false,
-                lastVisiblePage: response.data.pagination?.last_visible_page || 1,
                 nextStartPage: page + 1
             };
         } catch (error) {
@@ -172,10 +152,8 @@ const fetchWithLock = async (cacheKey, lockKey, url, delayMs = 500) => {
 export const fetchGenres = async (type = 'anime') => {
     const lockKey = `genres_${type}`;
     const data = await fetchWithLock(cache.genres[type], lockKey, `${BASE_URL}/genres/${type}`);
-    // Aggressively strip Kids genre (mal_id 15 / explicit Kids title) globally
-    const filteredGenres = data.filter(g => g.mal_id !== 15 && g.name?.toLowerCase() !== 'kids');
-    if (filteredGenres.length > 0) cache.genres[type] = filteredGenres;
-    return filteredGenres;
+    if (data.length > 0) cache.genres[type] = data;
+    return data;
 };
 
 export const fetchProducers = async (type = 'anime') => {
@@ -193,68 +171,10 @@ export const searchMedia = async (type = 'anime', query) => {
     return enqueueRequest(async () => {
         try {
             const key = `searchMedia_${type}_${query}`;
-            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}?q=${query}&limit=20&sfw=true&genres_exclude=15`));
-            return filterKidsContent(response.data.data);
+            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}?q=${query}&limit=20`));
+            return response.data.data;
         } catch (error) {
             console.error('Search Error:', error);
-            return [];
-        }
-    });
-};
-
-export const fetchMediaById = async (type = 'anime', id) => {
-    return enqueueRequest(async () => {
-        try {
-            const key = `fetchMediaById_${type}_${id}`;
-            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}/${id}/full`));
-            const data = response.data.data;
-            // Strict ID-level validation shutting down direct links to Kids content
-            if (data && filterKidsContent([data]).length === 0) {
-                console.log(`[Sanitizer] Blocked direct fetch to Kids demographic media: ${id}`);
-                return null;
-            }
-            return data;
-        } catch (error) {
-            console.error('Fetch By ID Error:', error.message);
-            return null;
-        }
-    });
-};
-
-export const fetchMediaCharacters = async (type = 'anime', id) => {
-    return enqueueRequest(async () => {
-        try {
-            const key = `fetchMediaCharacters_${type}_${id}`;
-            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}/${id}/characters`));
-            return response.data.data;
-        } catch (error) {
-            console.error('Fetch Characters Error:', error.message);
-            return [];
-        }
-    });
-};
-
-export const fetchCharacterById = async (id) => {
-    return enqueueRequest(async () => {
-        try {
-            const key = `fetchCharacterById_${id}`;
-            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/characters/${id}/full`));
-            return response.data.data;
-        } catch (error) {
-            console.error('Fetch Character By ID Error:', error.message);
-            return null;
-        }
-    });
-};
-
-export const fetchMediaDetailsRecommendations = async (type = 'anime', id) => {
-    return enqueueRequest(async () => {
-        try {
-            const key = `fetchMediaDetailsRecommendations_${type}_${id}`;
-            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}/${id}/recommendations`));
-            return filterKidsContent(response.data.data);
-        } catch (error) {
-            console.error('Fetch Details Recs Error:', error.message);
             return [];
         }
     });
@@ -266,8 +186,8 @@ export const fetchTopMedia = async (type = 'anime', limit = 5) => {
     return enqueueRequest(async () => {
         try {
             const key = `fetchTopMedia_${type}_${limit}`;
-            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/top/${type}?filter=bypopularity&limit=${limit}&sfw=true`));
-            const data = filterKidsContent(response.data.data || []);
+            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/top/${type}?filter=bypopularity&limit=${limit}`));
+            const data = response.data.data || [];
             if (limit === 5 && data.length > 0) cache.topMedia[type] = data;
             return data;
         } catch (error) {
@@ -285,8 +205,7 @@ export const fetchRecommendations = async (type = 'anime', id) => {
         try {
             const key = `fetchRecommendations_${type}_${id}`;
             const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}/${id}/recommendations`));
-            const rawRecs = response.data.data.map(item => item.entry);
-            const data = filterKidsContent(rawRecs).slice(0, 10);
+            const data = response.data.data.map(item => item.entry).slice(0, 10);
             if (data.length > 0) cache.recommendations[type][id] = data;
             return data;
         } catch (error) {
@@ -308,7 +227,7 @@ export const fetchSeasonalAnime = async () => {
         while (hasNextPage) {
             const responseData = await enqueueRequest(async () => {
                 const key = `fetchSeasonalAnime_schedules_${page}`;
-                const res = await fetchCached(key, () => axios.get(`${BASE_URL}/schedules?page=${page}&sfw=true&kids=false`));
+                const res = await fetchCached(key, () => axios.get(`${BASE_URL}/schedules?page=${page}`));
                 return res.data;
             }, 600); // 600ms delay safely stays under the 3 req/sec Jikan rate limit globally
 
@@ -322,18 +241,14 @@ export const fetchSeasonalAnime = async () => {
         // Deduplicate the massive fetched array by mal_id (Pagination shifting sometimes sends ghosts)
         const uniqueData = Array.from(new Map(allData.map(item => [item.mal_id, item])).values());
 
-        // Final strict purge 
-        const sanitizedData = filterKidsContent(uniqueData);
-
-        const nullBroadcasts = sanitizedData.filter(item => !item.broadcast?.day);
-        console.log(`[AiringSync] Total Schedule Anime Fetched: ${sanitizedData.length}`);
+        const nullBroadcasts = uniqueData.filter(item => !item.broadcast?.day);
+        console.log(`[AiringSync] Total Schedule Anime Fetched: ${uniqueData.length}`);
         console.log(`[AiringSync] Anime with broadcast.day === null or unassigned: ${nullBroadcasts.length}`);
 
-        if (sanitizedData.length > 0) cache.seasonal = sanitizedData;
-        return sanitizedData;
+        if (uniqueData.length > 0) cache.seasonal = uniqueData;
+        return uniqueData;
     } catch (error) {
         console.error('Seasonal Error:', error);
         return [];
     }
-};
-
+}

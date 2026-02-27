@@ -1,4 +1,4 @@
-import { fetchMediaBatch, fetchGenres, fetchProducers, fetchMediaById, fetchMediaCharacters, fetchMediaDetailsRecommendations } from './api';
+import { fetchMediaBatch, fetchGenres, fetchProducers, fetchMediaById, fetchMediaCharacters, fetchCharacterById, fetchMediaDetailsRecommendations } from './api';
 import { QueryClient } from '@tanstack/react-query';
 
 // Standalone QueryClient for usage outside of React components
@@ -39,6 +39,13 @@ export const mediaService = {
         return queryClient.fetchQuery({
             queryKey: ['mediaCharacters', mode, id],
             queryFn: () => fetchMediaCharacters(mode, id),
+        });
+    },
+
+    getCharacterById: async (id) => {
+        return queryClient.fetchQuery({
+            queryKey: ['characterById', id],
+            queryFn: () => fetchCharacterById(id),
         });
     },
 

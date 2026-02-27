@@ -216,7 +216,10 @@ export default function DetailsScreen({ route, navigation }) {
     const renderCharacter = ({ item }) => {
         const imageUrl = item.character?.images?.jpg?.image_url || 'https://cdn.myanimelist.net/images/questionmark_50.gif';
         return (
-            <View style={styles.characterCard}>
+            <TouchableOpacity
+                style={styles.characterCard}
+                onPress={() => navigation.push('CharacterDetails', { id: item.character.mal_id })}
+            >
                 <Image
                     source={{ uri: imageUrl }}
                     style={styles.characterImage}
@@ -226,7 +229,7 @@ export default function DetailsScreen({ route, navigation }) {
                 <Text style={[styles.characterName, { color: theme.text }]} numberOfLines={2}>
                     {item.character?.name}
                 </Text>
-            </View>
+            </TouchableOpacity>
         );
     };
 

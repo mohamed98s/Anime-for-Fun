@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AnimeListScreen from '../screens/AnimeListScreen';
 import DetailsScreen from '../screens/DetailsScreen';
+import CharacterDetailsScreen from '../screens/CharacterDetailsScreen';
 import SearchScreen from '../screens/SearchScreen';
 import LibraryScreen from '../screens/LibraryScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -45,6 +46,11 @@ function HomeStackNavigator() {
                 component={DetailsScreen}
                 options={{ title: 'Details' }}
             />
+            <HomeStack.Screen
+                name="CharacterDetails"
+                component={CharacterDetailsScreen}
+                options={{ title: 'Character Profile' }}
+            />
         </HomeStack.Navigator>
     );
 }
@@ -70,6 +76,11 @@ function SearchStackNavigator() {
                 name="Details"
                 component={DetailsScreen}
                 options={{ title: 'Details' }}
+            />
+            <SearchStack.Screen
+                name="CharacterDetails"
+                component={CharacterDetailsScreen}
+                options={{ title: 'Character Profile' }}
             />
         </SearchStack.Navigator>
     )
@@ -97,6 +108,11 @@ function LibraryStackNavigator() {
                 component={DetailsScreen}
                 options={{ title: 'Details' }}
             />
+            <LibraryStack.Screen
+                name="CharacterDetails"
+                component={CharacterDetailsScreen}
+                options={{ title: 'Character Profile' }}
+            />
         </LibraryStack.Navigator>
     )
 }
@@ -122,6 +138,11 @@ function AiringStackNavigator() {
                 name="Details"
                 component={DetailsScreen}
                 options={{ title: 'Details' }}
+            />
+            <AiringStack.Screen
+                name="CharacterDetails"
+                component={CharacterDetailsScreen}
+                options={{ title: 'Character Profile' }}
             />
         </AiringStack.Navigator>
     )
@@ -161,6 +182,11 @@ function DiscoveryStackNavigator() {
                 name="Details"
                 component={DetailsScreen}
                 options={{ title: 'Details' }}
+            />
+            <DiscoveryStack.Screen
+                name="CharacterDetails"
+                component={CharacterDetailsScreen}
+                options={{ title: 'Character Profile' }}
             />
         </DiscoveryStack.Navigator>
     )
