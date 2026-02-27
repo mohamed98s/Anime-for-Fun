@@ -247,6 +247,51 @@ export const fetchCharacterById = async (id) => {
     });
 };
 
+export const fetchMangaPictures = async (id) => {
+    return enqueueRequest(async () => {
+        try {
+            const key = `fetchMangaPictures_${id}`;
+            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/manga/${id}/pictures`));
+
+            // Map strictly to react-native-image-viewing expected format [{ uri: url }]
+            if (!response.data || !response.data.data) return [];
+            return response.data.data.map(img => ({ uri: img.jpg.image_url || img.jpg.large_image_url }));
+        } catch (error) {
+            console.error('Fetch Manga Pictures Error:', error.message);
+            return [];
+        }
+    });
+};
+
+export const fetchAnimeImdbImages = async (title) => {
+    if (!title) return [];
+    return enqueueRequest(async () => {
+        try {
+            // Strip Season 2, (TV), Part 2, The Movie, 2nd Season, etc natively
+            const sanitizedTitle = title.replace(/\(TV\)|\(Movie\)|Season \d+|Part \d+|\d+(st|nd|rd|th) Season|The Movie/gi, '').trim();
+            const key = `fetchAnimeImdbImages_${sanitizedTitle}`;
+
+            const response = await fetchCached(key, async () => {
+                const searchRes = await axios.get(`https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(sanitizedTitle)}&limit=1`);
+                if (!searchRes.data || !searchRes.data.results || searchRes.data.results.length === 0) {
+                    return { data: { backdrops: [] } };
+                }
+                const imdbId = searchRes.data.results[0].id;
+                if (!imdbId) return { data: { backdrops: [] } };
+
+                return axios.get(`https://api.imdbapi.dev/titles/${imdbId}/images`);
+            });
+
+            const backdrops = response.data?.backdrops || [];
+            // Map strictly to react-native-image-viewing expected format [{ uri: url }]
+            return backdrops.map(img => ({ uri: img.url }));
+        } catch (error) {
+            console.error('Fetch Anime IMDb Images Error:', error.message);
+            return [];
+        }
+    });
+};
+
 export const fetchMediaDetailsRecommendations = async (type = 'anime', id) => {
     return enqueueRequest(async () => {
         try {

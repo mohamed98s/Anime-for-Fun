@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { mediaService } from '../services/mediaService';
 import { useLibrary } from '../context/LibraryContext';
 import { Ionicons } from '@expo/vector-icons';
+import MediaGallery from '../components/MediaGallery';
 
 function HydratedRelationCard({ relationNode, theme, navigation }) {
     const { mal_id, type, relationType, name } = relationNode;
@@ -359,6 +360,13 @@ export default function DetailsScreen({ route, navigation }) {
                         </>
                     )}
                 </View>
+
+                {/* Block 2.5: Media Gallery Glide */}
+                <MediaGallery
+                    mediaId={mediaId}
+                    mediaType={mediaType}
+                    title={displayItem?.title_english || displayItem?.title}
+                />
 
                 {/* Block 3: Characters */}
                 {characters && characters.length > 0 && (

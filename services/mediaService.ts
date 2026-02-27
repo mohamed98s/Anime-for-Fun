@@ -1,4 +1,4 @@
-import { fetchMediaBatch, fetchGenres, fetchProducers, fetchMediaById, fetchMediaCharacters, fetchCharacterById, fetchMediaDetailsRecommendations } from './api';
+import { fetchMediaBatch, fetchGenres, fetchProducers, fetchMediaById, fetchMediaCharacters, fetchCharacterById, fetchMangaPictures, fetchAnimeImdbImages, fetchMediaDetailsRecommendations } from './api';
 import { QueryClient } from '@tanstack/react-query';
 
 // Standalone QueryClient for usage outside of React components
@@ -46,6 +46,20 @@ export const mediaService = {
         return queryClient.fetchQuery({
             queryKey: ['characterById', id],
             queryFn: () => fetchCharacterById(id),
+        });
+    },
+
+    getMangaPictures: async (id) => {
+        return queryClient.fetchQuery({
+            queryKey: ['mangaPictures', id],
+            queryFn: () => fetchMangaPictures(id),
+        });
+    },
+
+    getAnimeImdbImages: async (title) => {
+        return queryClient.fetchQuery({
+            queryKey: ['animeImdbImages', title],
+            queryFn: () => fetchAnimeImdbImages(title),
         });
     },
 
