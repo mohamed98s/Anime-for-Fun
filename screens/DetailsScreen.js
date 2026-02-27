@@ -8,6 +8,7 @@ import { mediaService } from '../services/mediaService';
 import { useLibrary } from '../context/LibraryContext';
 import { Ionicons } from '@expo/vector-icons';
 import MediaGallery from '../components/MediaGallery';
+import ParentalGuideModal from '../components/ParentalGuideModal';
 
 function HydratedRelationCard({ relationNode, theme, navigation }) {
     const { mal_id, type, relationType, name } = relationNode;
@@ -342,6 +343,9 @@ export default function DetailsScreen({ route, navigation }) {
                             {currentStatus ? 'Update Status' : '+ Add to Library'}
                         </Text>
                     </TouchableOpacity>
+
+                    {/* Bandwidth-Efficient Parental Guide Overlay */}
+                    <ParentalGuideModal title={displayItem?.title_english || displayItem?.title} />
                 </View>
 
                 {/* Block 2: Synopsis & Background */}

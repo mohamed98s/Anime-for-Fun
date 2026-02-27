@@ -269,24 +269,71 @@ export const fetchAnimeImdbImages = async (title) => {
         try {
             // Strip Season 2, (TV), Part 2, The Movie, 2nd Season, etc natively
             const sanitizedTitle = title.replace(/\(TV\)|\(Movie\)|Season \d+|Part \d+|\d+(st|nd|rd|th) Season|The Movie/gi, '').trim();
+            console.log("1. Sanitized Title:", sanitizedTitle);
+
             const key = `fetchAnimeImdbImages_${sanitizedTitle}`;
 
             const response = await fetchCached(key, async () => {
-                const searchRes = await axios.get(`https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(sanitizedTitle)}&limit=1`);
-                if (!searchRes.data || !searchRes.data.results || searchRes.data.results.length === 0) {
-                    return { data: { backdrops: [] } };
-                }
-                const imdbId = searchRes.data.results[0].id;
-                if (!imdbId) return { data: { backdrops: [] } };
+                const searchUrl = `https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(sanitizedTitle)}&limit=1`;
+                console.log("2. Search URL:", searchUrl);
 
-                return axios.get(`https://api.imdbapi.dev/titles/${imdbId}/images`);
+                const searchRes = await axios.get(searchUrl);
+                console.log("3. Search Response:", JSON.stringify(searchRes.data, null, 2));
+
+                if (!searchRes.data || !searchRes.data.titles || searchRes.data.titles.length === 0) {
+                    return { data: { images: [] } };
+                }
+
+                const firstResult = searchRes.data.titles[0];
+                const extractedId = firstResult.id;
+
+                console.log("4. Extracted ID:", extractedId);
+
+                if (!extractedId) return { data: { images: [] } };
+
+                return axios.get(`https://api.imdbapi.dev/titles/${extractedId}/images`);
             });
 
-            const backdrops = response.data?.backdrops || [];
+            const imagesArray = response.data?.images || [];
             // Map strictly to react-native-image-viewing expected format [{ uri: url }]
-            return backdrops.map(img => ({ uri: img.url }));
+            return imagesArray.map(img => ({ uri: img.url }));
         } catch (error) {
             console.error('Fetch Anime IMDb Images Error:', error.message);
+            return [];
+        }
+    });
+};
+
+export const fetchParentalGuide = async (title) => {
+    if (!title) return [];
+    return enqueueRequest(async () => {
+        try {
+            const sanitizedTitle = title.replace(/\(TV\)|\(Movie\)|Season \d+|Part \d+|\d+(st|nd|rd|th) Season|The Movie/gi, '').trim();
+            const key = `fetchParentalGuide_${sanitizedTitle}`;
+
+            const response = await fetchCached(key, async () => {
+                const searchRes = await axios.get(`https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(sanitizedTitle)}&limit=1`);
+
+                if (!searchRes.data || !searchRes.data.titles || searchRes.data.titles.length === 0) {
+                    return { data: { parentalguide: [] } }; // Fallback
+                }
+
+                const imdbId = searchRes.data.titles[0].id;
+                if (!imdbId) return { data: { parentalguide: [] } };
+
+                try {
+                    return await axios.get(`https://api.imdbapi.dev/titles/${imdbId}/parentalguide`);
+                } catch (err) {
+                    // Gracefully intercept 404 Missing Guide Data natively
+                    console.log(`[ParentalGuide] No guide exists for ${imdbId} on IMDb servers.`);
+                    return { data: { parentalguide: [] } };
+                }
+            });
+
+            // Map the generic data array robustly capturing whichever layout responds
+            return response.data?.parentalguide || response.data?.advisories || response.data?.content_ratings || [];
+        } catch (error) {
+            console.error('Fetch Parental Guide Error:', error.message);
             return [];
         }
     });
