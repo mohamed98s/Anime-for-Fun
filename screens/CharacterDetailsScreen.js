@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Text, ScrollView, ActivityIndicator, FlatList, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, ActivityIndicator, FlatList, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -19,7 +19,6 @@ const decodeHTMLEntities = (text) => {
 export default function CharacterDetailsScreen({ route, navigation }) {
     const { id } = route.params;
     const { theme } = useTheme();
-    const { height } = useWindowDimensions();
 
     const { data: characterData, isLoading, error } = useQuery({
         queryKey: ['characterById', id],
