@@ -160,6 +160,9 @@ export default function SearchScreen({ navigation }) {
                     onSubmitEditing={() => handleSearch(query)}
                     returnKeyType="search"
                 />
+                {isLoading && (
+                    <ActivityIndicator size="small" color={theme.accent} style={{ marginRight: 10 }} />
+                )}
                 {query.length > 0 && (
                     <Ionicons
                         name="close-circle"
@@ -170,17 +173,13 @@ export default function SearchScreen({ navigation }) {
                 )}
             </View>
 
-            {isLoading && (
-                <ActivityIndicator size="large" color={theme.accent} style={styles.loader} />
-            )}
-
             {error && isSearching && (
                 <View style={styles.center}>
                     <Text style={[styles.errorText, { color: theme.notification }]}>{error}</Text>
                 </View>
             )}
 
-            {!isLoading && !error && (
+            {!error && (
                 <Animated.View style={{ flex: 1, opacity: isSearching ? 1 : fadeAnim }}>
                     {!isSearching && dataToShow.length > 0 && (
                         <View style={styles.headerContainer}>
