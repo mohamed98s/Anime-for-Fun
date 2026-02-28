@@ -51,7 +51,7 @@ export const fetchMediaPage = async (type = 'anime', page = 1) => {
     return enqueueRequest(async () => {
         try {
             const key = `fetchMediaPage_${type}_${page}`;
-            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}?page=${page}&limit=20&order_by=popularity&sfw=true&genres_exclude=15`));
+            const response = await fetchCached(key, () => axios.get(`${BASE_URL}/${type}?page=${page}&limit=20&order_by=popularity&genres_exclude=15`));
             return filterKidsContent(response.data.data);
         } catch (error) {
             console.error('API Fetch Error:', error);
@@ -102,7 +102,6 @@ export const fetchMediaBatch = async (type = 'anime', page = 1, options = {}) =>
 
             // Append safe parameters natively supported by generic query filters
             if (options.endpoint !== 'top' && options.endpoint !== 'season') {
-                params.append('sfw', 'true');
                 params.append('genres_exclude', '15');
             }
 
@@ -284,8 +283,13 @@ export const fetchAnimeImdbImages = async (title) => {
                     return { data: { images: [] } };
                 }
 
-                const firstResult = searchRes.data.titles[0];
-                const extractedId = firstResult.id;
+                const validResult = searchRes.data.titles.find(t =>
+                    (t.primaryTitle && t.primaryTitle.toLowerCase() === sanitizedTitle.toLowerCase()) ||
+                    (t.originalTitle && t.originalTitle.toLowerCase() === sanitizedTitle.toLowerCase())
+                );
+
+                if (!validResult) return { data: { images: [] } };
+                const extractedId = validResult.id;
 
                 console.log("4. Extracted ID:", extractedId);
 
@@ -318,8 +322,13 @@ export const fetchParentalGuide = async (title) => {
                     return { data: { parentsGuide: [] } }; // Fallback
                 }
 
-                const imdbId = searchRes.data.titles[0].id;
-                if (!imdbId) return { data: { parentsGuide: [] } };
+                const validResult = searchRes.data.titles.find(t =>
+                    (t.primaryTitle && t.primaryTitle.toLowerCase() === sanitizedTitle.toLowerCase()) ||
+                    (t.originalTitle && t.originalTitle.toLowerCase() === sanitizedTitle.toLowerCase())
+                );
+
+                if (!validResult) return { data: { parentsGuide: [] } };
+                const imdbId = validResult.id;
 
                 try {
                     return await axios.get(`https://api.imdbapi.dev/titles/${imdbId}/parentsGuide`);

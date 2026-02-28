@@ -67,10 +67,15 @@ export default function ParentalGuideModal({ title }) {
                                             .toLowerCase()
                                             .replace(/\b\w/g, c => c.toUpperCase());
 
-                                        // Safely extract severityLevel from the breakdowns array cleanly
-                                        const severityInfo = item.severityBreakdowns && item.severityBreakdowns.length > 0
-                                            ? item.severityBreakdowns[0].severityLevel
-                                            : 'Unrated / None';
+                                        // Natively extract the accurate severityLevel by locating the object with the absolute maximum voteCount
+                                        let severityInfo = 'Unrated / None';
+                                        if (item.severityBreakdowns && item.severityBreakdowns.length > 0) {
+                                            const highestVoted = item.severityBreakdowns.reduce((max, obj) =>
+                                                (obj.voteCount > max.voteCount) ? obj : max
+                                                , item.severityBreakdowns[0]);
+
+                                            severityInfo = highestVoted.severityLevel.charAt(0).toUpperCase() + highestVoted.severityLevel.slice(1);
+                                        }
 
                                         return (
                                             <View key={index} style={styles.guideRow}>
@@ -80,6 +85,17 @@ export default function ParentalGuideModal({ title }) {
                                                 <Text style={[styles.guideSeverity, { color: theme.subText }]}>
                                                     Severity: {severityInfo}
                                                 </Text>
+
+                                                {/* Map the explicit detailed reviews natively */}
+                                                {item.reviews && item.reviews.length > 0 && (
+                                                    <View style={styles.reviewsContainer}>
+                                                        {item.reviews.map((review, rIdx) => (
+                                                            <Text key={rIdx} style={[styles.reviewText, { color: theme.subText }]}>
+                                                                • {review.text || review}
+                                                            </Text>
+                                                        ))}
+                                                    </View>
+                                                )}
                                             </View>
                                         );
                                     })
@@ -171,6 +187,17 @@ const styles = StyleSheet.create({
     guideSeverity: {
         fontSize: 14,
         lineHeight: 22,
+        fontWeight: 'bold',
+    },
+    reviewsContainer: {
+        marginTop: 8,
+        paddingLeft: 4,
+    },
+    reviewText: {
+        fontSize: 13,
+        lineHeight: 20,
+        marginBottom: 6,
+        fontStyle: 'italic',
     },
     closeButton: {
         paddingVertical: 16,

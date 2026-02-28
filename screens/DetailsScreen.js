@@ -344,8 +344,10 @@ export default function DetailsScreen({ route, navigation }) {
                         </Text>
                     </TouchableOpacity>
 
-                    {/* Bandwidth-Efficient Parental Guide Overlay */}
-                    <ParentalGuideModal title={displayItem?.title_english || displayItem?.title} />
+                    {/* Bandwidth-Efficient Parental Guide Overlay (Anime Only) */}
+                    {mediaType !== 'manga' && (
+                        <ParentalGuideModal title={displayItem?.title_english || displayItem?.title} />
+                    )}
                 </View>
 
                 {/* Block 2: Synopsis & Background */}
