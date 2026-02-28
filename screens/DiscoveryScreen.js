@@ -1,325 +1,319 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator, FlatList } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { useMediaMode } from '../context/MediaModeContext';
 import { mediaService } from '../services/mediaService';
 import { Ionicons } from '@expo/vector-icons';
-import AnimeCard from '../components/AnimeCard';
+
+// Explicit Genres IDs (MyAnimeList/Jikan)
+const EXPLICIT_GENRES = [12, 49]; // 12=Hentai, 49=Erotica
 
 export default function DiscoveryScreen({ navigation }) {
     const { theme } = useTheme();
+    const { mode, modeVersion } = useMediaMode();
 
-    // 1. The Unified State
-    const [filters, setFilters] = useState({
-        mode: 'anime',
-        sort: 'members',
-        format: '',
-        genre: ''
-    });
+    const [genres, setGenres] = useState([]);
+    const [producers, setProducers] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-    // 2. Fetch Genres Dynamically based on mode
-    const { data: genresData } = useQuery({
-        queryKey: ['genres', filters.mode],
-        queryFn: async () => {
-            const raw = await mediaService.getGenres(filters.mode);
-            return raw || [];
-        },
-        staleTime: 1000 * 60 * 60 * 24, // Cache for 24h
-    });
+    useEffect(() => {
+        loadDiscoveryData();
+    }, [modeVersion]); // Safely track integer signal instead of string string directly
 
-    // Deduplicate genres
-    const genresList = genresData || [];
-    const uniqueGenres = Array.from(new Map(genresList.map(item => [item.mal_id, item])).values());
+    const loadDiscoveryData = async () => {
+        setLoading(true);
+        try {
+            const [allGenres, allProducers] = await Promise.all([
+                mediaService.getGenres(mode),
+                mediaService.getProducers(mode)
+            ]);
 
-    // 3. Infinite Query Engine
-    const {
-        data: discoveryData,
-        fetchNextPage,
-        hasNextPage,
-        isFetchingNextPage,
-        isLoading,
-    } = useInfiniteQuery({
-        queryKey: ['discoveryItems', filters],
-        queryFn: async ({ pageParam = 1 }) => {
-            return await mediaService.getDiscoveryPage(filters, pageParam);
-        },
-        getNextPageParam: (lastPage) => {
-            if (lastPage?.hasNextPage) {
-                return lastPage.nextStartPage;
-            }
-            return undefined;
-        },
-        staleTime: 1000 * 60 * 5, // 5 min
-    });
+            // Deduplicate Genres
+            const uniqueGenres = Array.from(new Map(allGenres.map(item => [item.mal_id, item])).values());
+            const uniqueProducers = Array.from(new Map(allProducers.map(item => [item.mal_id, item])).values());
 
-    // Flatten pages sequentially
-    const items = discoveryData?.pages.flatMap(page => page.data) || [];
+            setGenres(uniqueGenres);
+            setProducers(uniqueProducers);
 
-    const updateFilter = (key, value) => {
-        setFilters(prev => {
-            // Un-toggle pattern: if it's already active, clicking sets it back to empty string
-            let nextValue = prev[key] === value ? '' : value;
-
-            // EXCEPTION: Enforce sort to never be fully empty natively
-            if (key === 'sort' && !nextValue) {
-                nextValue = 'members';
-            }
-
-            return {
-                ...prev,
-                [key]: nextValue
-            };
-        });
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const updateMode = (newMode) => {
-        setFilters({
-            mode: newMode,
-            sort: 'members', // Reset sort baseline
-            format: '',      // Purge old formats spanning modes
-            genre: ''        // Purge old generic mappings
-        });
+    const navigateToSwipe = (props) => {
+        navigation.navigate('Swipe', props);
     };
 
-    // Format Maps
-    const ANIME_FORMATS = [
-        { id: 'tv', label: 'TV' },
-        { id: 'movie', label: 'Movie' },
-        { id: 'ova', label: 'OVA' },
-        { id: 'ona', label: 'ONA' },
-        { id: 'special', label: 'Special' }
-    ];
-    const MANGA_FORMATS = [
-        { id: 'manga', label: 'Manga' },
-        { id: 'novel', label: 'Novel' },
-        { id: 'lightnovel', label: 'Light Novel' },
-        { id: 'manhwa', label: 'Manhwa' },
-        { id: 'manhua', label: 'Manhua' }
-    ];
+    // --- Data Processing ---
+    // 1. Explicit
+    const explicitList = genres.filter(g => EXPLICIT_GENRES.includes(g.mal_id));
 
-    const activeFormats = filters.mode === 'anime' ? ANIME_FORMATS : MANGA_FORMATS;
+    // 2. Demographics (approximate list based on known MAL demographics)
+    const DEMOGRAPHIC_NAMES = ['Shounen', 'Shoujo', 'Seinen', 'Josei', 'Kids'];
+    const demographicsList = genres.filter(g => DEMOGRAPHIC_NAMES.includes(g.name));
 
-    const renderItem = ({ item }) => (
-        <AnimeCard
-            item={item}
-            onPress={() => navigation.push('Details', { id: item.mal_id, type: filters.mode, item })}
-            isList={false}
-        />
+    // 3. Themes (approximate - anything not standard genre, explicit, or demographic)
+    const STANDARD_GENRES = ['Action', 'Adventure', 'Avant Garde', 'Award Winning', 'Comedy', 'Drama', 'Fantasy', 'Horror', 'Mystery', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Suspense'];
+    const themesList = genres.filter(g =>
+        !EXPLICIT_GENRES.includes(g.mal_id) &&
+        !DEMOGRAPHIC_NAMES.includes(g.name) &&
+        !STANDARD_GENRES.includes(g.name)
     );
 
-    const renderFooter = () => {
-        if (!isFetchingNextPage) return <View style={{ height: 40 }} />;
+    // 4. Normal Genres
+    const standardList = genres.filter(g => STANDARD_GENRES.includes(g.name));
+
+    // --- Components ---
+    const Section = ({ title, children }) => (
+        <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.accent }]}>{title}</Text>
+            <View style={styles.chipContainer}>{children}</View>
+        </View>
+    );
+
+    const Chip = ({ label, onPress, color }) => (
+        <TouchableOpacity
+            style={[styles.chip, { backgroundColor: theme.card, borderColor: color || theme.border }]}
+            onPress={onPress}
+            activeOpacity={0.7}
+        >
+            <Text style={[styles.chipText, { color: theme.text }]}>{label}</Text>
+        </TouchableOpacity>
+    );
+
+    const RankingButton = ({ title, filter, subtype, icon }) => (
+        <TouchableOpacity
+            style={[styles.rankingButton, { backgroundColor: theme.card }]}
+            onPress={() => navigateToSwipe({ title, options: { endpoint: 'top', filter, subtype } })}
+        >
+            <Ionicons name={icon} size={24} color={theme.accent} />
+            <Text style={[styles.rankingText, { color: theme.text }]}>{title}</Text>
+        </TouchableOpacity>
+    );
+
+    // Generate Seasons (Current Year - 5)
+    const renderSeasons = () => {
+        const currentYear = new Date().getFullYear(); // 2026 per current time
+        const years = Array.from({ length: 6 }, (_, i) => currentYear - i);
+        const seasons = ['Winter', 'Spring', 'Summer', 'Fall'];
+
+        return years.map(year => (
+            <View key={year} style={styles.yearRow}>
+                <Text style={[styles.yearText, { color: theme.subText }]}>{year}</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingLeft: 10 }}>
+                    {seasons.map(season => (
+                        <TouchableOpacity
+                            key={`${year}-${season}`}
+                            style={[styles.seasonChip, { backgroundColor: theme.card }]}
+                            onPress={() => navigateToSwipe({
+                                title: `${season} ${year}`,
+                                options: { endpoint: 'season', year, season: season.toLowerCase() }
+                            })}
+                        >
+                            <Text style={{ color: theme.text }}>{season}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+        ));
+    };
+
+    if (loading) {
         return (
-            <View style={styles.footerLoader}>
+            <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
                 <ActivityIndicator size="large" color={theme.accent} />
             </View>
         );
-    };
+    }
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
             <StatusBar barStyle={theme.statusBar || 'default'} backgroundColor={theme.background} />
 
             <View style={[styles.header, { borderBottomColor: theme.border }]}>
-                <Text style={[styles.headerTitle, { color: theme.text }]}>Explore Jikan Database</Text>
+                <Text style={[styles.headerTitle, { color: theme.text }]}>Discover {mode === 'anime' ? 'Anime' : 'Manga'}</Text>
             </View>
 
-            {/* Tier 1: Mode Toggle */}
-            <View style={[styles.modeContainer, { backgroundColor: theme.card }]}>
-                <TouchableOpacity
-                    style={[styles.modeBtn, filters.mode === 'anime' && { backgroundColor: theme.accent }]}
-                    onPress={() => updateMode('anime')}
-                    activeOpacity={0.8}
-                >
-                    <Text style={[styles.modeText, filters.mode === 'anime' ? { color: '#fff' } : { color: theme.subText }]}>Anime</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.modeBtn, filters.mode === 'manga' && { backgroundColor: theme.accent }]}
-                    onPress={() => updateMode('manga')}
-                    activeOpacity={0.8}
-                >
-                    <Text style={[styles.modeText, filters.mode === 'manga' ? { color: '#fff' } : { color: theme.subText }]}>Manga</Text>
-                </TouchableOpacity>
-            </View>
+            <ScrollView contentContainerStyle={styles.content}>
 
-            {/* Tier 2: Sort Controls */}
-            <View style={styles.sortContainer}>
-                <TouchableOpacity
-                    style={[styles.sortBtn, filters.sort === 'members' ? { backgroundColor: theme.card, borderColor: theme.accent, borderWidth: 1 } : { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}
-                    onPress={() => updateFilter('sort', 'members')}
-                    activeOpacity={0.7}
-                >
-                    <Ionicons name="heart" size={16} color={filters.sort === 'members' ? theme.accent : theme.subText} style={{ marginRight: 6 }} />
-                    <Text style={[styles.sortText, filters.sort === 'members' ? { color: theme.accent } : { color: theme.subText }]}>Popularity</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.sortBtn, filters.sort === 'score' ? { backgroundColor: theme.card, borderColor: theme.accent, borderWidth: 1 } : { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}
-                    onPress={() => updateFilter('sort', 'score')}
-                    activeOpacity={0.7}
-                >
-                    <Ionicons name="star" size={16} color={filters.sort === 'score' ? theme.accent : theme.subText} style={{ marginRight: 6 }} />
-                    <Text style={[styles.sortText, filters.sort === 'score' ? { color: theme.accent } : { color: theme.subText }]}>Ranked Score</Text>
-                </TouchableOpacity>
-            </View>
+                {/* 0. Surprise Me Recommendation Button */}
+                <Section title="Explore & Discover">
+                    <TouchableOpacity
+                        style={[styles.surpriseBtn, { backgroundColor: theme.card, shadowColor: theme.card, marginBottom: 15 }]}
+                        onPress={() => navigation.navigate('SurpriseMe')}
+                    >
+                        <Ionicons name="sparkles" size={28} color={theme.accent} />
+                        <View style={{ marginLeft: 15 }}>
+                            <Text style={[styles.surpriseTitle, { color: theme.text }]}>Surprise Me!</Text>
+                            <Text style={[styles.surpriseSub, { color: theme.subText }]}>Generate a random recommendation tailored to your taste</Text>
+                        </View>
+                    </TouchableOpacity>
 
-            {/* Tier 3: Format Row */}
-            <View style={styles.filterRow}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollBlock}>
-                    {activeFormats.map(fmt => (
-                        <TouchableOpacity
-                            key={fmt.id}
-                            style={[
-                                styles.pill,
-                                filters.format === fmt.id ? { backgroundColor: theme.accent, borderColor: theme.accent } : { backgroundColor: theme.card, borderColor: theme.border }
-                            ]}
-                            onPress={() => updateFilter('format', fmt.id)}
-                            activeOpacity={0.7}
-                        >
-                            <Text style={[styles.pillText, filters.format === fmt.id ? { color: '#fff' } : { color: theme.text }]}>{fmt.label}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-            </View>
+                    <TouchableOpacity
+                        style={[styles.surpriseBtn, { backgroundColor: theme.card, shadowColor: theme.card }]}
+                        onPress={() => navigation.navigate('AdvancedSearch')}
+                    >
+                        <Ionicons name="options" size={28} color={theme.accent} />
+                        <View style={{ marginLeft: 15 }}>
+                            <Text style={[styles.surpriseTitle, { color: theme.text }]}>Advanced Search</Text>
+                            <Text style={[styles.surpriseSub, { color: theme.subText }]}>Filter by genre, format, and rankings natively</Text>
+                        </View>
+                    </TouchableOpacity>
+                </Section>
 
-            {/* Tier 4: Genre Row */}
-            <View style={styles.filterRow}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollBlock}>
-                    {uniqueGenres.map(g => (
-                        <TouchableOpacity
+                {/* 1. Rankings - CONDITIONAL BASED ON MODE */}
+                <Section title="Rankings">
+                    <View style={styles.grid}>
+                        {mode === 'anime' ? (
+                            <>
+                                <RankingButton title="Top Airing" filter="airing" icon="flame" />
+                                <RankingButton title="Upcoming" filter="upcoming" icon="calendar" />
+                                <RankingButton title="Most Popular" filter="bypopularity" icon="heart" />
+                                <RankingButton title="Top Movies" subtype="movie" icon="film" />
+                            </>
+                        ) : (
+                            <>
+                                <RankingButton title="Publishing" filter="publishing" icon="book" />
+                                <RankingButton title="Most Popular" filter="bypopularity" icon="heart" />
+                                <RankingButton title="Top Novels" subtype="lightnovel" icon="bookmarks" />
+                                <RankingButton title="Top Manhwa" subtype="manhwa" icon="phone-portrait" />
+                            </>
+                        )}
+                    </View>
+                </Section>
+
+                {/* 2. Genres */}
+                <Section title="Genres">
+                    {standardList.map(g => (
+                        <Chip
                             key={g.mal_id}
-                            style={[
-                                styles.pill,
-                                filters.genre === g.mal_id.toString() ? { backgroundColor: theme.accent, borderColor: theme.accent } : { backgroundColor: theme.card, borderColor: theme.border }
-                            ]}
-                            onPress={() => updateFilter('genre', g.mal_id.toString())}
-                            activeOpacity={0.7}
-                        >
-                            <Text style={[styles.pillText, filters.genre === g.mal_id.toString() ? { color: '#fff' } : { color: theme.text }]}>{g.name}</Text>
-                        </TouchableOpacity>
+                            label={g.name}
+                            onPress={() => navigateToSwipe({ title: g.name, options: { genres: g.mal_id } })}
+                        />
                     ))}
-                </ScrollView>
-            </View>
+                </Section>
 
-            {/* The Infinite Grid */}
-            <View style={styles.gridContainer}>
-                {isLoading ? (
-                    <View style={styles.center}>
-                        <ActivityIndicator size="large" color={theme.accent} />
-                    </View>
-                ) : items.length === 0 ? (
-                    <View style={styles.center}>
-                        <Ionicons name="search-outline" size={48} color={theme.subText} />
-                        <Text style={[styles.emptyText, { color: theme.subText }]}>No titles match this combination.</Text>
-                    </View>
-                ) : (
-                    <FlatList
-                        data={items}
-                        renderItem={renderItem}
-                        keyExtractor={(item, index) => `${item.mal_id}-${index}`}
-                        numColumns={3}
-                        columnWrapperStyle={styles.columnWrapper}
-                        contentContainerStyle={styles.listContent}
-                        onEndReached={() => {
-                            if (hasNextPage) fetchNextPage();
-                        }}
-                        onEndReachedThreshold={0.5}
-                        ListFooterComponent={renderFooter}
-                        showsVerticalScrollIndicator={false}
-                    />
+                {/* 3. Explicit */}
+                {explicitList.length > 0 && (
+                    <Section title="Explicit">
+                        {explicitList.map(g => (
+                            <Chip
+                                key={g.mal_id}
+                                label={g.name}
+                                color="red"
+                                onPress={() => navigateToSwipe({ title: g.name, options: { explicit_genres: g.mal_id } })}
+                            />
+                        ))}
+                    </Section>
                 )}
-            </View>
+
+                {/* 4. Themes */}
+                <Section title="Themes">
+                    {themesList.map(g => (
+                        <Chip
+                            key={g.mal_id}
+                            label={g.name}
+                            onPress={() => navigateToSwipe({ title: g.name, options: { genres: g.mal_id } })}
+                        />
+                    ))}
+                </Section>
+
+                {/* 5. Demographics */}
+                <Section title="Demographics">
+                    {demographicsList.map(g => (
+                        <Chip
+                            key={g.mal_id}
+                            label={g.name}
+                            onPress={() => navigateToSwipe({ title: g.name, options: { genres: g.mal_id } })}
+                        />
+                    ))}
+                </Section>
+
+                {/* 6. Studios / Magazines */}
+                <Section title={mode === 'anime' ? "Top Studios" : "Magazines"}>
+                    {producers.map(p => (
+                        <Chip
+                            key={p.mal_id}
+                            label={p.titles ? p.titles[0].title : p.name}
+                            onPress={() => navigateToSwipe({
+                                title: p.titles ? p.titles[0].title : p.name,
+                                options: mode === 'anime' ? { producers: p.mal_id } : { magazines: p.mal_id }
+                            })}
+                        />
+                    ))}
+                </Section>
+
+                {/* 7. Seasons (Anime Only) */}
+                {mode === 'anime' && (
+                    <View style={styles.section}>
+                        <Text style={[styles.sectionTitle, { color: theme.accent }]}>Seasons Archive</Text>
+                        {renderSeasons()}
+                    </View>
+                )}
+
+                <View style={{ height: 50 }} />
+                <View style={{ height: 50 }} />
+            </ScrollView>
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: {
-        paddingHorizontal: 15,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-    },
-    modeContainer: {
-        flexDirection: 'row',
-        marginHorizontal: 10,
-        marginTop: 10,
-        marginBottom: 8,
-        borderRadius: 8,
-        overflow: 'hidden',
-    },
-    modeBtn: {
-        flex: 1,
-        paddingVertical: 10,
-        alignItems: 'center',
-    },
-    modeText: {
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    sortContainer: {
-        flexDirection: 'row',
-        paddingHorizontal: 10,
-        marginBottom: 8,
-        gap: 8,
-    },
-    sortBtn: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
+    header: { padding: 15, alignItems: 'center', borderBottomWidth: 1 },
+    headerTitle: { fontSize: 20, fontWeight: 'bold' },
+    content: { padding: 15 },
+    section: { marginBottom: 25 },
+    sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10, textTransform: 'uppercase' },
+    chipContainer: { flexDirection: 'row', flexWrap: 'wrap' },
+    chip: {
         paddingVertical: 8,
-        borderRadius: 8,
-    },
-    sortText: {
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    filterRow: {
-        height: 38,
-        marginBottom: 8,
-    },
-    scrollBlock: {
-        paddingHorizontal: 10,
-        gap: 8,
-        alignItems: 'center',
-    },
-    pill: {
         paddingHorizontal: 16,
-        paddingVertical: 6,
         borderRadius: 20,
         borderWidth: 1,
+        marginRight: 8,
+        marginBottom: 8,
     },
-    pillText: {
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    gridContainer: {
-        flex: 1,
-    },
-    listContent: {
-        padding: 5,
-        paddingBottom: 20,
-    },
-    columnWrapper: {
-        justifyContent: 'space-between',
-    },
-    center: {
-        flex: 1,
-        justifyContent: 'center',
+    chipText: { fontSize: 14, fontWeight: '600' },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+    rankingButton: {
+        width: '48%',
+        padding: 15,
+        borderRadius: 12,
         alignItems: 'center',
+        marginBottom: 10,
+        elevation: 1,
     },
-    emptyText: {
-        marginTop: 10,
-        fontSize: 16,
+    rankingText: { marginTop: 5, fontWeight: 'bold' },
+    yearRow: { marginBottom: 15 },
+    yearText: { fontWeight: 'bold', marginBottom: 5 },
+    seasonChip: {
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 15,
+        marginRight: 10,
     },
-    footerLoader: {
-        paddingVertical: 20,
-        justifyContent: 'center',
+    surpriseBtn: {
+        flexDirection: 'row',
         alignItems: 'center',
+        padding: 20,
+        borderRadius: 16,
+        elevation: 3,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+    },
+    surpriseTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 4,
+    },
+    surpriseSub: {
+        fontSize: 13,
+        opacity: 0.8,
+        maxWidth: '85%'
     }
 });

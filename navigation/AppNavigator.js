@@ -13,6 +13,7 @@ import AiringScreen from '../screens/AiringScreen';
 import DiscoveryScreen from '../screens/DiscoveryScreen';
 import SwipeScreen from '../screens/SwipeScreen';
 import SurpriseMeScreen from '../screens/SurpriseMeScreen';
+import AdvancedSearchScreen from '../screens/AdvancedSearchScreen';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useMediaMode } from '../context/MediaModeContext';
@@ -171,6 +172,12 @@ function DiscoveryStackNavigator() {
                 component={SurpriseMeScreen}
                 options={{ headerShown: false }}
                 key={`surprise-${mode}`}
+            />
+            <DiscoveryStack.Screen
+                name="AdvancedSearch"
+                component={AdvancedSearchScreen}
+                options={{ headerShown: false }}
+                key={`advanced-${mode}`}
             />
             <DiscoveryStack.Screen
                 name="Swipe"
