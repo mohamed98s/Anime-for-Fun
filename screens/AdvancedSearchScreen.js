@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator, FlatList } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator, FlatList, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
@@ -15,8 +15,11 @@ export default function AdvancedSearchScreen({ navigation }) {
         mode: 'anime',
         sort: 'members',
         format: '',
-        genre: ''
+        genre: '',
+        excludedGenres: ['12', '49', '28'] // 12=Hentai, 49=Erotica, 28=Boys Love defaults
     });
+
+    const [isExcludeModalVisible, setExcludeModalVisible] = useState(false);
 
     // 2. Fetch Genres Dynamically based on mode
     const { data: genresData } = useQuery({
@@ -78,7 +81,19 @@ export default function AdvancedSearchScreen({ navigation }) {
             mode: newMode,
             sort: 'members', // Reset sort baseline
             format: '',      // Purge old formats spanning modes
-            genre: ''        // Purge old generic mappings
+            genre: '',       // Purge old generic mappings
+            excludedGenres: ['12', '49', '28'] // Retain explicit exclusion defaults
+        });
+    };
+
+    const toggleExclude = (idStr) => {
+        setFilters(prev => {
+            const current = prev.excludedGenres || [];
+            const isExcluded = current.includes(idStr);
+            return {
+                ...prev,
+                excludedGenres: isExcluded ? current.filter(id => id !== idStr) : [...current, idStr]
+            };
         });
     };
 
@@ -128,21 +143,32 @@ export default function AdvancedSearchScreen({ navigation }) {
                 <Text style={[styles.headerTitle, { color: theme.text }]}>Advanced Search</Text>
             </View>
 
-            {/* Tier 1: Mode Toggle */}
-            <View style={[styles.modeContainer, { backgroundColor: theme.card }]}>
+            {/* Tier 1: Mode Toggle & Exclude Gateway */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 10, marginTop: 10, marginBottom: 8 }}>
+                <View style={[styles.modeContainer, { backgroundColor: theme.card, flex: 1, marginHorizontal: 0, marginTop: 0, marginBottom: 0 }]}>
+                    <TouchableOpacity
+                        style={[styles.modeBtn, filters.mode === 'anime' && { backgroundColor: theme.accent }]}
+                        onPress={() => updateMode('anime')}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={[styles.modeText, filters.mode === 'anime' ? { color: '#fff' } : { color: theme.subText }]}>Anime</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.modeBtn, filters.mode === 'manga' && { backgroundColor: theme.accent }]}
+                        onPress={() => updateMode('manga')}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={[styles.modeText, filters.mode === 'manga' ? { color: '#fff' } : { color: theme.subText }]}>Manga</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Exclude Gateway Button */}
                 <TouchableOpacity
-                    style={[styles.modeBtn, filters.mode === 'anime' && { backgroundColor: theme.accent }]}
-                    onPress={() => updateMode('anime')}
-                    activeOpacity={0.8}
+                    style={{ marginLeft: 10, padding: 10, backgroundColor: theme.card, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
+                    onPress={() => setExcludeModalVisible(true)}
+                    activeOpacity={0.7}
                 >
-                    <Text style={[styles.modeText, filters.mode === 'anime' ? { color: '#fff' } : { color: theme.subText }]}>Anime</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.modeBtn, filters.mode === 'manga' && { backgroundColor: theme.accent }]}
-                    onPress={() => updateMode('manga')}
-                    activeOpacity={0.8}
-                >
-                    <Text style={[styles.modeText, filters.mode === 'manga' ? { color: '#fff' } : { color: theme.subText }]}>Manga</Text>
+                    <Ionicons name="filter-circle" size={24} color={filters.excludedGenres.length > 0 ? "red" : theme.subText} />
                 </TouchableOpacity>
             </View>
 
@@ -232,6 +258,53 @@ export default function AdvancedSearchScreen({ navigation }) {
                     />
                 )}
             </View>
+
+            {/* Exclude Genres Modal Environment */}
+            <Modal visible={isExcludeModalVisible} transparent={true} animationType="fade" onRequestClose={() => setExcludeModalVisible(false)}>
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}>
+                    <View style={{ width: '90%', maxHeight: '80%', backgroundColor: theme.background, borderRadius: 12, padding: 20 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                            <Text style={{ fontSize: 20, fontWeight: 'bold', color: theme.text }}>Exclude Genres</Text>
+                            <TouchableOpacity onPress={() => setExcludeModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                                <Ionicons name="close" size={26} color={theme.text} />
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={{ color: theme.subText, marginBottom: 15, fontSize: 13 }}>
+                            Selected genres will be strictly hidden from the output grid explicitly parsing dynamically.
+                        </Text>
+
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                                {uniqueGenres.map(g => {
+                                    const isExcluded = filters.excludedGenres.includes(g.mal_id.toString());
+                                    return (
+                                        <TouchableOpacity
+                                            key={`ex-${g.mal_id}`}
+                                            style={[
+                                                styles.pill,
+                                                isExcluded ? { backgroundColor: 'red', borderColor: 'red' } : { backgroundColor: theme.card, borderColor: theme.border }
+                                            ]}
+                                            onPress={() => toggleExclude(g.mal_id.toString())}
+                                            activeOpacity={0.7}
+                                        >
+                                            <Text style={[styles.pillText, isExcluded ? { color: '#fff' } : { color: theme.text }]}>{g.name}</Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                            <View style={{ height: 20 }} />
+                        </ScrollView>
+
+                        <TouchableOpacity
+                            style={{ marginTop: 15, backgroundColor: theme.accent, padding: 15, borderRadius: 8, alignItems: 'center' }}
+                            onPress={() => setExcludeModalVisible(false)}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Apply Filters</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }

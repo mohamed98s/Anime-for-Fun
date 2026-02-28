@@ -123,7 +123,7 @@ export const fetchMediaBatch = async (type = 'anime', page = 1, options = {}) =>
     }, 500); // Slightly longer delay base for batch
 };
 
-export const fetchDiscoveryPage = async ({ mode, page, sort, format, genre }) => {
+export const fetchDiscoveryPage = async ({ mode, page, sort, format, genre, excludedGenres }) => {
     return enqueueRequest(async () => {
         try {
             const url = `${BASE_URL}/${mode}`;
@@ -136,7 +136,17 @@ export const fetchDiscoveryPage = async ({ mode, page, sort, format, genre }) =>
 
             if (format) params.append('type', format);
             if (genre) params.append('genres', genre);
-            if (mode === 'anime') params.append('genres_exclude', '15'); // Strictly purge Kids demographic
+
+            // Handle excluded genres safely converting arrays natively
+            if (excludedGenres && excludedGenres.length > 0) {
+                let excludes = [...excludedGenres];
+                if (mode === 'anime' && !excludes.includes('15')) {
+                    excludes.push('15'); // Strictly purge Kids demographic natively always
+                }
+                params.append('genres_exclude', excludes.join(','));
+            } else if (mode === 'anime') {
+                params.append('genres_exclude', '15');
+            }
 
             const fullUrl = `${url}?${params.toString()}`;
             const key = `fetchDiscoveryPage_${mode}_${page}_${params.toString()}`;
