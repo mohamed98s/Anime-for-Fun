@@ -273,7 +273,8 @@ export const fetchAnimeImdbImages = async (title, year) => {
             const key = `fetchAnimeImdbImages_${sanitizedTitle}_${year}`;
 
             const response = await fetchCached(key, async () => {
-                const searchUrl = `https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(sanitizedTitle)}&limit=5`;
+                const searchString = year ? `${sanitizedTitle} ${year}` : sanitizedTitle;
+                const searchUrl = `https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(searchString)}&limit=8`;
                 console.log("2. Search URL:", searchUrl);
 
                 const searchRes = await axios.get(searchUrl);
@@ -290,11 +291,11 @@ export const fetchAnimeImdbImages = async (title, year) => {
                 }
 
                 if (!validResult) {
-                    // Fallback securely back to strict text equality
+                    // Fallback securely back to strict text equality only
                     validResult = searchRes.data.titles.find(t =>
                         (t.primaryTitle && t.primaryTitle.toLowerCase() === sanitizedTitle.toLowerCase()) ||
                         (t.originalTitle && t.originalTitle.toLowerCase() === sanitizedTitle.toLowerCase())
-                    ) || searchRes.data.titles[0];
+                    );
                 }
 
                 if (!validResult) return { data: { images: [] } };
