@@ -262,18 +262,18 @@ export const fetchMangaPictures = async (id) => {
     });
 };
 
-export const fetchAnimeImdbImages = async (title) => {
+export const fetchAnimeImdbImages = async (title, year) => {
     if (!title) return [];
     return enqueueRequest(async () => {
         try {
             // Strip Season 2, (TV), Part 2, The Movie, 2nd Season, etc natively
             const sanitizedTitle = title.replace(/\(TV\)|\(Movie\)|Season \d+|Part \d+|\d+(st|nd|rd|th) Season|The Movie/gi, '').trim();
-            console.log("1. Sanitized Title:", sanitizedTitle);
+            console.log("1. Sanitized Title:", sanitizedTitle, "Year:", year);
 
-            const key = `fetchAnimeImdbImages_${sanitizedTitle}`;
+            const key = `fetchAnimeImdbImages_${sanitizedTitle}_${year}`;
 
             const response = await fetchCached(key, async () => {
-                const searchUrl = `https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(sanitizedTitle)}&limit=1`;
+                const searchUrl = `https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(sanitizedTitle)}&limit=5`;
                 console.log("2. Search URL:", searchUrl);
 
                 const searchRes = await axios.get(searchUrl);
@@ -283,10 +283,19 @@ export const fetchAnimeImdbImages = async (title) => {
                     return { data: { images: [] } };
                 }
 
-                const validResult = searchRes.data.titles.find(t =>
-                    (t.primaryTitle && t.primaryTitle.toLowerCase() === sanitizedTitle.toLowerCase()) ||
-                    (t.originalTitle && t.originalTitle.toLowerCase() === sanitizedTitle.toLowerCase())
-                );
+                let validResult;
+                if (year) {
+                    // Fuzzy Title Tolerance: verify via +/- 1 broadcast year (Jikan -> IMDb mapping differences)
+                    validResult = searchRes.data.titles.find(t => t.startYear && Math.abs(t.startYear - year) <= 1);
+                }
+
+                if (!validResult) {
+                    // Fallback securely back to strict text equality
+                    validResult = searchRes.data.titles.find(t =>
+                        (t.primaryTitle && t.primaryTitle.toLowerCase() === sanitizedTitle.toLowerCase()) ||
+                        (t.originalTitle && t.originalTitle.toLowerCase() === sanitizedTitle.toLowerCase())
+                    ) || searchRes.data.titles[0];
+                }
 
                 if (!validResult) return { data: { images: [] } };
                 const extractedId = validResult.id;
@@ -308,24 +317,33 @@ export const fetchAnimeImdbImages = async (title) => {
     });
 };
 
-export const fetchParentalGuide = async (title) => {
+export const fetchParentalGuide = async (title, year) => {
     if (!title) return [];
     return enqueueRequest(async () => {
         try {
             const sanitizedTitle = title.replace(/\(TV\)|\(Movie\)|Season \d+|Part \d+|\d+(st|nd|rd|th) Season|The Movie/gi, '').trim();
-            const key = `fetchParentalGuide_${sanitizedTitle}`;
+            const key = `fetchParentalGuide_${sanitizedTitle}_${year}`;
 
             const response = await fetchCached(key, async () => {
-                const searchRes = await axios.get(`https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(sanitizedTitle)}&limit=1`);
+                const searchRes = await axios.get(`https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(sanitizedTitle)}&limit=5`);
 
                 if (!searchRes.data || !searchRes.data.titles || searchRes.data.titles.length === 0) {
                     return { data: { parentsGuide: [] } }; // Fallback
                 }
 
-                const validResult = searchRes.data.titles.find(t =>
-                    (t.primaryTitle && t.primaryTitle.toLowerCase() === sanitizedTitle.toLowerCase()) ||
-                    (t.originalTitle && t.originalTitle.toLowerCase() === sanitizedTitle.toLowerCase())
-                );
+                let validResult;
+                if (year) {
+                    // Match the broadcast year
+                    validResult = searchRes.data.titles.find(t => t.startYear && Math.abs(t.startYear - year) <= 1);
+                }
+
+                if (!validResult) {
+                    // Fallback to strict text equality
+                    validResult = searchRes.data.titles.find(t =>
+                        (t.primaryTitle && t.primaryTitle.toLowerCase() === sanitizedTitle.toLowerCase()) ||
+                        (t.originalTitle && t.originalTitle.toLowerCase() === sanitizedTitle.toLowerCase())
+                    ) || searchRes.data.titles[0];
+                }
 
                 if (!validResult) return { data: { parentsGuide: [] } };
                 const imdbId = validResult.id;
