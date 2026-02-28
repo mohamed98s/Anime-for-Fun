@@ -325,7 +325,9 @@ export const fetchParentalGuide = async (title, year) => {
             const key = `fetchParentalGuide_${sanitizedTitle}_${year}`;
 
             const response = await fetchCached(key, async () => {
-                const searchRes = await axios.get(`https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(sanitizedTitle)}&limit=5`);
+                const searchString = year ? `${sanitizedTitle} ${year}` : sanitizedTitle;
+                const searchUrl = `https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(searchString)}&limit=8`;
+                const searchRes = await axios.get(searchUrl);
 
                 if (!searchRes.data || !searchRes.data.titles || searchRes.data.titles.length === 0) {
                     return { data: { parentsGuide: [] } }; // Fallback
@@ -338,11 +340,11 @@ export const fetchParentalGuide = async (title, year) => {
                 }
 
                 if (!validResult) {
-                    // Fallback to strict text equality
+                    // Fallback strictly to text equality ONLY, never guess [0] blindly.
                     validResult = searchRes.data.titles.find(t =>
                         (t.primaryTitle && t.primaryTitle.toLowerCase() === sanitizedTitle.toLowerCase()) ||
                         (t.originalTitle && t.originalTitle.toLowerCase() === sanitizedTitle.toLowerCase())
-                    ) || searchRes.data.titles[0];
+                    );
                 }
 
                 if (!validResult) return { data: { parentsGuide: [] } };
