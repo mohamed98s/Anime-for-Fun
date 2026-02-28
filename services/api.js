@@ -123,6 +123,39 @@ export const fetchMediaBatch = async (type = 'anime', page = 1, options = {}) =>
     }, 500); // Slightly longer delay base for batch
 };
 
+export const fetchDiscoveryPage = async ({ mode, page, sort, format, genre }) => {
+    return enqueueRequest(async () => {
+        try {
+            const url = `${BASE_URL}/${mode}`;
+            const params = new URLSearchParams({
+                page: page.toString(),
+                limit: '25',
+                order_by: sort,
+                sort: 'desc'
+            });
+
+            if (format) params.append('type', format);
+            if (genre) params.append('genres', genre);
+            if (mode === 'anime') params.append('genres_exclude', '15'); // Strictly purge Kids demographic
+
+            const fullUrl = `${url}?${params.toString()}`;
+            const key = `fetchDiscoveryPage_${mode}_${page}_${params.toString()}`;
+
+            const response = await fetchCached(key, () => axios.get(fullUrl));
+
+            return {
+                data: filterKidsContent(response.data.data || []),
+                hasNextPage: response.data.pagination?.has_next_page || false,
+                lastVisiblePage: response.data.pagination?.last_visible_page || 1,
+                nextStartPage: page + 1
+            };
+        } catch (error) {
+            console.error('API Discovery Fetch Error:', error.message);
+            return { data: [], hasNextPage: false, nextStartPage: page };
+        }
+    }, 500);
+};
+
 // Response Caching and Active Request Locks
 const cache = {
     genres: { anime: null, manga: null },

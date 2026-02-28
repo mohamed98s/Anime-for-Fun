@@ -135,6 +135,32 @@ export const mediaService = {
         }
     },
 
+    getDiscoveryPage: async (filters, page) => {
+        const queryKey = ['discoveryPage', filters, page];
+        try {
+            const res = await queryClient.fetchQuery({
+                queryKey,
+                queryFn: async () => {
+                    const { fetchDiscoveryPage } = await import('./api');
+                    let result = await fetchDiscoveryPage({ ...filters, page });
+                    if (!result) result = { data: [], hasNextPage: false };
+                    if (!result.data || !Array.isArray(result.data)) result.data = [];
+
+                    const validData = result.data.filter(item => item && item.mal_id);
+                    const uniqueMap = new Map();
+                    validData.forEach(item => uniqueMap.set(item.mal_id, item));
+                    result.data = Array.from(uniqueMap.values());
+
+                    return result;
+                },
+            });
+            return res;
+        } catch (err) {
+            console.error('[DiscoveryService]', err);
+            return { data: [], hasNextPage: false };
+        }
+    },
+
     clearCache: () => {
         queryClient.clear();
     }
