@@ -348,7 +348,7 @@ export default function DetailsScreen({ route, navigation }) {
                     {mediaType !== 'manga' && (
                         <ParentalGuideModal
                             title={displayItem?.title_english || displayItem?.title}
-                            year={seasonYearText}
+                            year={yearText}
                         />
                     )}
                 </View>
@@ -375,7 +375,7 @@ export default function DetailsScreen({ route, navigation }) {
                     mediaId={mediaId}
                     mediaType={mediaType}
                     title={displayItem?.title_english || displayItem?.title}
-                    year={seasonYearText}
+                    year={yearText}
                 />
 
                 {/* Block 3: Characters */}
