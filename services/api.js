@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getImdbIdFromMalId } from './mappingService';
 
 const requestCache = new Map();
 
@@ -305,51 +306,17 @@ export const fetchMangaPictures = async (id) => {
     });
 };
 
-export const fetchAnimeImdbImages = async (title, year) => {
-    if (!title) return [];
+export const fetchAnimeImdbImages = async (malId) => {
+    if (!malId) return [];
     return enqueueRequest(async () => {
         try {
-            // Strip Season 2, (TV), Part 2, The Movie, 2nd Season, etc natively
-            const sanitizedTitle = title.replace(/\(TV\)|\(Movie\)|Season \d+|Part \d+|\d+(st|nd|rd|th) Season|The Movie/gi, '').trim();
-            console.log("1. Sanitized Title:", sanitizedTitle, "Year:", year);
+            const imdbId = await getImdbIdFromMalId(malId);
+            if (!imdbId) return []; // Gracefully skip if missing
 
-            const key = `fetchAnimeImdbImages_${sanitizedTitle}_${year}`;
-
-            const response = await fetchCached(key, async () => {
-                const searchString = year ? `${sanitizedTitle} ${year}` : sanitizedTitle;
-                const searchUrl = `https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(searchString)}&limit=8`;
-                console.log("2. Search URL:", searchUrl);
-
-                const searchRes = await axios.get(searchUrl);
-                console.log("3. Search Response:", JSON.stringify(searchRes.data, null, 2));
-
-                if (!searchRes.data || !searchRes.data.titles || searchRes.data.titles.length === 0) {
-                    return { data: { images: [] } };
-                }
-
-                let validResult;
-                if (year) {
-                    // Fuzzy Title Tolerance: verify via +/- 1 broadcast year (Jikan -> IMDb mapping differences)
-                    validResult = searchRes.data.titles.find(t => t.startYear && Math.abs(t.startYear - year) <= 1);
-                }
-
-                if (!validResult) {
-                    // Fallback securely back to strict text equality only
-                    validResult = searchRes.data.titles.find(t =>
-                        (t.primaryTitle && t.primaryTitle.toLowerCase() === sanitizedTitle.toLowerCase()) ||
-                        (t.originalTitle && t.originalTitle.toLowerCase() === sanitizedTitle.toLowerCase())
-                    );
-                }
-
-                if (!validResult) return { data: { images: [] } };
-                const extractedId = validResult.id;
-
-                console.log("4. Extracted ID:", extractedId);
-
-                if (!extractedId) return { data: { images: [] } };
-
-                return axios.get(`https://api.imdbapi.dev/titles/${extractedId}/images`);
-            });
+            const key = `fetchAnimeImdbImages_${imdbId}`;
+            const response = await fetchCached(key, () =>
+                axios.get(`https://api.imdbapi.dev/titles/${imdbId}/images`)
+            );
 
             const imagesArray = response.data?.images || [];
             // Map strictly to react-native-image-viewing expected format [{ uri: url }]
@@ -361,49 +328,23 @@ export const fetchAnimeImdbImages = async (title, year) => {
     });
 };
 
-export const fetchParentalGuide = async (title, year) => {
-    if (!title) return [];
+export const fetchParentalGuide = async (malId) => {
+    if (!malId) return [];
     return enqueueRequest(async () => {
         try {
-            const sanitizedTitle = title.replace(/\(TV\)|\(Movie\)|Season \d+|Part \d+|\d+(st|nd|rd|th) Season|The Movie/gi, '').trim();
-            const key = `fetchParentalGuide_${sanitizedTitle}_${year}`;
+            const imdbId = await getImdbIdFromMalId(malId);
+            if (!imdbId) return []; // Gracefully skip if missing
 
+            const key = `fetchParentalGuide_${imdbId}`;
             const response = await fetchCached(key, async () => {
-                const searchString = year ? `${sanitizedTitle} ${year}` : sanitizedTitle;
-                const searchUrl = `https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(searchString)}&limit=8`;
-                const searchRes = await axios.get(searchUrl);
-
-                if (!searchRes.data || !searchRes.data.titles || searchRes.data.titles.length === 0) {
-                    return { data: { parentsGuide: [] } }; // Fallback
-                }
-
-                let validResult;
-                if (year) {
-                    // Match the broadcast year
-                    validResult = searchRes.data.titles.find(t => t.startYear && Math.abs(t.startYear - year) <= 1);
-                }
-
-                if (!validResult) {
-                    // Fallback strictly to text equality ONLY, never guess [0] blindly.
-                    validResult = searchRes.data.titles.find(t =>
-                        (t.primaryTitle && t.primaryTitle.toLowerCase() === sanitizedTitle.toLowerCase()) ||
-                        (t.originalTitle && t.originalTitle.toLowerCase() === sanitizedTitle.toLowerCase())
-                    );
-                }
-
-                if (!validResult) return { data: { parentsGuide: [] } };
-                const imdbId = validResult.id;
-
                 try {
                     return await axios.get(`https://api.imdbapi.dev/titles/${imdbId}/parentsGuide`);
                 } catch (err) {
-                    // Gracefully intercept 404 Missing Guide Data natively
                     console.log(`[ParentalGuide] No guide exists for ${imdbId} on IMDb servers.`);
                     return { data: { parentsGuide: [] } };
                 }
             });
 
-            // Map the exact schema array robustly
             return response.data?.parentsGuide || [];
         } catch (error) {
             console.error('Fetch Parental Guide Error:', error.message);

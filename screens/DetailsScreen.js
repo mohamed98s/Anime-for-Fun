@@ -346,10 +346,7 @@ export default function DetailsScreen({ route, navigation }) {
 
                     {/* Bandwidth-Efficient Parental Guide Overlay (Anime Only) */}
                     {mediaType !== 'manga' && (
-                        <ParentalGuideModal
-                            title={displayItem?.title_english || displayItem?.title}
-                            year={yearText}
-                        />
+                        <ParentalGuideModal malId={mediaId} />
                     )}
                 </View>
 
@@ -374,8 +371,6 @@ export default function DetailsScreen({ route, navigation }) {
                 <MediaGallery
                     mediaId={mediaId}
                     mediaType={mediaType}
-                    title={displayItem?.title_english || displayItem?.title}
-                    year={yearText}
                 />
 
                 {/* Block 3: Characters */}

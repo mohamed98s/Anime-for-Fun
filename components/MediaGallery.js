@@ -6,7 +6,7 @@ import ImageViewing from 'react-native-image-viewing';
 import { mediaService } from '../services/mediaService';
 import { useTheme } from '../context/ThemeContext';
 
-export default function MediaGallery({ mediaId, mediaType, title, year }) {
+export default function MediaGallery({ mediaId, mediaType }) {
     const { theme } = useTheme();
     const { width } = useWindowDimensions();
     const [viewerVisible, setViewerVisible] = useState(false);
@@ -14,10 +14,10 @@ export default function MediaGallery({ mediaId, mediaType, title, year }) {
     const [currentIndex, setCurrentIndex] = useState(0);
 
     const { data: galleryImages = [], isLoading } = useQuery({
-        queryKey: mediaType === 'manga' ? ['mangaPictures', mediaId] : ['animeImdbImages', title, year],
+        queryKey: mediaType === 'manga' ? ['mangaPictures', mediaId] : ['animeImdbImages', mediaId],
         queryFn: () => mediaType === 'manga'
             ? mediaService.getMangaPictures(mediaId)
-            : mediaService.getAnimeImdbImages(title, year),
+            : mediaService.getAnimeImdbImages(mediaId),
         staleTime: 1000 * 60 * 60 * 24, // 24 hours caching effectively
     });
 

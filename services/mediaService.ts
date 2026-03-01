@@ -56,17 +56,17 @@ export const mediaService = {
         });
     },
 
-    getAnimeImdbImages: async (title, year) => {
+    getAnimeImdbImages: async (malId) => {
         return queryClient.fetchQuery({
-            queryKey: ['animeImdbImages', title, year],
-            queryFn: () => fetchAnimeImdbImages(title, year),
+            queryKey: ['animeImdbImages', malId],
+            queryFn: () => fetchAnimeImdbImages(malId),
         });
     },
 
-    getParentalGuide: async (title, year) => {
+    getParentalGuide: async (malId) => {
         return queryClient.fetchQuery({
-            queryKey: ['parentalGuide', title, year],
-            queryFn: () => fetchParentalGuide(title, year),
+            queryKey: ['parentalGuide', malId],
+            queryFn: () => fetchParentalGuide(malId),
         });
     },
 

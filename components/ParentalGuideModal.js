@@ -4,14 +4,14 @@ import { useQuery } from '@tanstack/react-query';
 import { mediaService } from '../services/mediaService';
 import { useTheme } from '../context/ThemeContext';
 
-export default function ParentalGuideModal({ title, year }) {
+export default function ParentalGuideModal({ malId }) {
     const { theme } = useTheme();
     const [isModalVisible, setModalVisible] = useState(false);
 
     // Lazy Execution: Network payload completely restricted until `refetch()` trigger natively
     const { data: guideData, isFetching, refetch } = useQuery({
-        queryKey: ['parentalGuide', title, year],
-        queryFn: () => mediaService.getParentalGuide(title, year),
+        queryKey: ['parentalGuide', malId],
+        queryFn: () => mediaService.getParentalGuide(malId),
         enabled: false,
         staleTime: 1000 * 60 * 60 * 24, // cache tightly saving bandwidth natively
     });
