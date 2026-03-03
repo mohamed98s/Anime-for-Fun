@@ -46,7 +46,14 @@ export const useDiscoveryController = () => {
 
     const setLogic = useCallback((logic) => {
         setGenreLogic(logic);
-    }, []);
+        if (logic === 'AND') {
+            setSelectedGenres({});
+        } else if (logic === 'OR') {
+            const allSelected: Record<string, boolean> = {};
+            genres.forEach((g: any) => { allSelected[g.mal_id] = true });
+            setSelectedGenres(allSelected);
+        }
+    }, [genres]);
 
     const generateRecommendation = async (genresToUse = genres, selectedMap = selectedGenres, logicToUse = genreLogic) => {
         setRecsLoading(true);

@@ -240,13 +240,21 @@ export default function AnimeListScreen({ navigation }) {
                         <View style={styles.logicContainer}>
                             <TouchableOpacity
                                 style={[styles.logicBtn, genreLogic === 'AND' ? { backgroundColor: theme.accent, borderColor: theme.accent } : { borderColor: theme.border }]}
-                                onPress={() => setGenreLogic('AND')}
+                                onPress={() => {
+                                    setGenreLogic('AND');
+                                    setSelectedGenres({}); // AND explicitly requires NONE selected initially
+                                }}
                             >
                                 <Text style={{ color: genreLogic === 'AND' ? '#fff' : theme.text, fontWeight: 'bold' }}>Require ALL (AND)</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.logicBtn, genreLogic === 'OR' ? { backgroundColor: theme.accent, borderColor: theme.accent } : { borderColor: theme.border }]}
-                                onPress={() => setGenreLogic('OR')}
+                                onPress={() => {
+                                    setGenreLogic('OR');
+                                    const allSelected = {};
+                                    genres.forEach(g => { allSelected[g.mal_id] = true });
+                                    setSelectedGenres(allSelected); // OR explicitly highlights ALL natively
+                                }}
                             >
                                 <Text style={{ color: genreLogic === 'OR' ? '#fff' : theme.text, fontWeight: 'bold' }}>Require ANY (OR)</Text>
                             </TouchableOpacity>

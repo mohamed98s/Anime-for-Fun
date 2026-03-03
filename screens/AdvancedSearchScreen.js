@@ -15,7 +15,7 @@ export default function AdvancedSearchScreen({ navigation }) {
         mode: 'anime',
         sort: 'members',
         format: '',
-        genre: '',
+        genres: [], // Explicit multi-select array mapped replacing single string
         excludedGenres: ['12', '49', '28'] // 12=Hentai, 49=Erotica, 28=Boys Love defaults
     });
 
@@ -61,6 +61,15 @@ export default function AdvancedSearchScreen({ navigation }) {
 
     const updateFilter = (key, value) => {
         setFilters(prev => {
+            if (key === 'genre') {
+                const currentGenres = prev.genres || [];
+                if (currentGenres.includes(value)) {
+                    return { ...prev, genres: currentGenres.filter(g => g !== value) };
+                } else {
+                    return { ...prev, genres: [...currentGenres, value] };
+                }
+            }
+
             // Un-toggle pattern: if it's already active, clicking sets it back to empty string
             let nextValue = prev[key] === value ? '' : value;
 
@@ -81,7 +90,7 @@ export default function AdvancedSearchScreen({ navigation }) {
             mode: newMode,
             sort: 'members', // Reset sort baseline
             format: '',      // Purge old formats spanning modes
-            genre: '',       // Purge old generic mappings
+            genres: [],      // Purge old generic mappings
             excludedGenres: ['12', '49', '28'] // Retain explicit exclusion defaults
         });
     };
@@ -214,19 +223,22 @@ export default function AdvancedSearchScreen({ navigation }) {
             {/* Tier 4: Genre Row */}
             <View style={styles.filterRow}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollBlock}>
-                    {uniqueGenres.map(g => (
-                        <TouchableOpacity
-                            key={g.mal_id}
-                            style={[
-                                styles.pill,
-                                filters.genre === g.mal_id.toString() ? { backgroundColor: theme.accent, borderColor: theme.accent } : { backgroundColor: theme.card, borderColor: theme.border }
-                            ]}
-                            onPress={() => updateFilter('genre', g.mal_id.toString())}
-                            activeOpacity={0.7}
-                        >
-                            <Text style={[styles.pillText, filters.genre === g.mal_id.toString() ? { color: '#fff' } : { color: theme.text }]}>{g.name}</Text>
-                        </TouchableOpacity>
-                    ))}
+                    {uniqueGenres.map(g => {
+                        const isSelected = filters.genres.includes(g.mal_id.toString());
+                        return (
+                            <TouchableOpacity
+                                key={g.mal_id}
+                                style={[
+                                    styles.pill,
+                                    isSelected ? { backgroundColor: theme.accent, borderColor: theme.accent } : { backgroundColor: theme.card, borderColor: theme.border }
+                                ]}
+                                onPress={() => updateFilter('genre', g.mal_id.toString())}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[styles.pillText, isSelected ? { color: '#fff' } : { color: theme.text }]}>{g.name}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </ScrollView>
             </View>
 
