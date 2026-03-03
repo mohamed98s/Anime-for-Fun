@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { mediaService } from '../services/mediaService';
 import { Ionicons } from '@expo/vector-icons';
-import AnimeCard from '../components/AnimeCard';
+import GridItemCard from '../components/GridItemCard';
 
 export default function AdvancedSearchScreen({ navigation }) {
     const { theme } = useTheme();
@@ -125,10 +125,9 @@ export default function AdvancedSearchScreen({ navigation }) {
     const activeFormats = filters.mode === 'anime' ? ANIME_FORMATS : MANGA_FORMATS;
 
     const renderItem = ({ item }) => (
-        <AnimeCard
+        <GridItemCard
             item={item}
             onPress={() => navigation.push('Details', { id: item.mal_id, type: filters.mode, item })}
-            isList={false}
         />
     );
 
@@ -396,7 +395,8 @@ const styles = StyleSheet.create({
         paddingBottom: 20,
     },
     columnWrapper: {
-        justifyContent: 'space-between',
+        justifyContent: 'flex-start',
+        gap: 2, // Flush poster gaps
     },
     center: {
         flex: 1,
